@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/button";
-import { VERBS } from "@/lib/storyboard";
+import { StoryboardScene, VERBS, sceneBadge, sceneSummary } from "@/lib/storyboard";
 
 const CATALOG: Record<string, { verb: string; label: string; blurb: string; fields: string[] }> = {
   "count-up": {
@@ -37,7 +39,44 @@ const STARTERS: Record<string, string> = {
   "pipeline-flow": "Make a 40s pipeline-flow explainer of how our render pipeline works.",
 };
 
-export default function LibraryPage() {
+export const dynamic = "force-dynamic";
+
+type ApprovedScene = {
+  scene: StoryboardScene;
+  storyboardId: string;
+  storyboardTitle: string;
+  index: number;
+};
+
+async function approvedScenes(): Promise<ApprovedScene[]> {
+  const dir = join(process.cwd(), "data", "storyboards");
+  const out: ApprovedScene[] = [];
+  try {
+    const files = (await readdir(dir)).filter((f) => f.endsWith(".json"));
+    for (const f of files) {
+      let record: { storyboard: { title: string; scenes: StoryboardScene[] } };
+      try {
+        record = JSON.parse(await readFile(join(dir, f), "utf8"));
+      } catch {
+        continue;
+      }
+      record.storyboard.scenes.forEach((scene, index) => {
+        if (scene.approved) {
+          out.push({
+            scene,
+            storyboardId: f.replace(/\.json$/, ""),
+            storyboardTitle: record.storyboard.title,
+            index,
+          });
+        }
+      });
+    }
+  } catch {}
+  return out;
+}
+
+export default async function LibraryPage() {
+  const approved = await approvedScenes();
   return (
     <AppShell projectTitle="Library">
       <main className="mx-auto max-w-5xl px-6 py-10">
@@ -86,6 +125,44 @@ export default function LibraryPage() {
               );
             })}
           </div>
+        </section>
+
+        <section aria-label="Approved scenes" className="mt-10">
+          <h2 className="text-[15px] font-semibold text-text-hi">Approved scenes</h2>
+          <p className="mt-1 text-[13px] text-text-med">
+            Scenes you marked “Approved” on a storyboard — reusable building blocks.
+          </p>
+          {approved.length === 0 ? (
+            <div className="mt-4 rounded-card border border-dashed border-border-subtle p-8 text-center text-[14px] text-text-med">
+              Nothing approved yet. Open a storyboard, hit Edit, and tick “Approved — reusable in
+              the scene library”.
+            </div>
+          ) : (
+            <ul className="mt-4 grid gap-4 sm:grid-cols-2">
+              {approved.map(({ scene, storyboardId, storyboardTitle, index }) => (
+                <li
+                  key={`${storyboardId}-${index}`}
+                  className="rounded-card border border-border-subtle bg-surface-1 p-5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-[12px] font-semibold tracking-wide text-accent-strong">
+                      {sceneBadge(scene)}
+                    </span>
+                    <span className="text-[13px] tabular-nums text-text-low">{scene.duration}s</span>
+                  </div>
+                  <p className="mt-3 text-[15px] leading-snug">{sceneSummary(scene)}</p>
+                  <Button variant="outline" size="sm" className="mt-4">
+                    <Link
+                      href={`/studio/${storyboardId}#scene-${index}`}
+                      className="flex items-center"
+                    >
+                      View in {storyboardTitle}
+                    </Link>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section aria-label="Brand kit" className="mt-10">

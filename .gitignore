@@ -31,3 +31,4 @@ Thumbs.db
 # next.js (when scaffolded)
 .next/
 out/
+.tools/

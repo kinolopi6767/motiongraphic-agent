@@ -16,6 +16,7 @@ export interface StoryboardScene {
   hook?: string;
   microhook?: string;
   tone?: string;
+  approved?: boolean;
 }
 
 export interface Storyboard {
@@ -146,4 +147,62 @@ export function sceneAnnotation(
 
   const pacing = scene.duration > 8 ? "Slow beat — let the data breathe." : "Quick beat — keeps the cut crisp.";
   return { role, verb: verbRationale[scene.verb], pacing };
+}
+
+export type GuardCheck = {
+  id: string;
+  label: string;
+  status: "pass" | "warn" | "fail";
+  detail: string;
+};
+
+/**
+ * Delivery guard (PLAN §5, static tier) — cheap pre-render contract checks.
+ * Run on the storyboard; motion/no-stasis checks need frames (Phase 3 render tier).
+ */
+export function runGuard(sb: Storyboard): GuardCheck[] {
+  const checks: GuardCheck[] = [];
+  const scenes = sb.scenes;
+  const coverage = scenes.filter((s) => s.microhook).length / Math.max(scenes.length - 1, 1);
+  const bomb = valueBombIndex(scenes, sb.total);
+
+  checks.push({
+    id: "hook",
+    label: "Cold-open hook",
+    status: scenes[0]?.hook ? "pass" : "warn",
+    detail: scenes[0]?.hook
+      ? `Scene 1 opens with: “${scenes[0].hook}”`
+      : "Scene 1 has no hook — consider the A/B/C picker.",
+  });
+  checks.push({
+    id: "microhooks",
+    label: "Microhooks across cuts",
+    status: coverage >= 0.6 ? "pass" : coverage >= 0.3 ? "warn" : "fail",
+    detail: `${Math.round(coverage * 100)}% of transitions pull forward (target ≥ 60%).`,
+  });
+  checks.push({
+    id: "value-bomb",
+    label: "Value bomb at 60–70%",
+    status: bomb >= 0 ? "pass" : "warn",
+    detail: bomb >= 0
+      ? `Scene ${bomb + 1} lands in the drop-off zone.`
+      : "No scene starts in the 60–70% band — the payoff may land too late.",
+  });
+  const total = sb.total;
+  checks.push({
+    id: "duration",
+    label: "Aspect & duration",
+    status: total >= TIMING.MIN_TOTAL_S && total <= TIMING.MAX_TOTAL_S ? "pass" : "fail",
+    detail: `${total}s total (allowed ${TIMING.MIN_TOTAL_S}–${TIMING.MAX_TOTAL_S}s).`,
+  });
+  const longScenes = scenes.filter((s) => s.duration > 8).length;
+  checks.push({
+    id: "pacing",
+    label: "Pacing mix",
+    status: longScenes === scenes.length ? "warn" : "pass",
+    detail: longScenes === scenes.length
+      ? "Every scene is a slow beat — mix in some quick cuts."
+      : `${scenes.length - longScenes} quick beat(s) against ${longScenes} slow beat(s).`,
+  });
+  return checks;
 }

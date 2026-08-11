@@ -5,7 +5,7 @@
  * -> manifest -> assemble -> hyperframes render -> MP4.
  *
  * Usage:
- *   node src/agent.mjs <script-file> [out-dir] [--render] [--snapshot AT,...]
+ *   node src/agent.mjs <script-file> [out-dir] [--render] [--snapshot AT,...] [--seed=<s>]
  *
  * Currently scene values come straight from the director's storyboard (single
  * LLM pass, validated). The per-scene agent hook is where scene agents will
@@ -27,6 +27,7 @@ await mkdir(outDir, { recursive: true });
 
 const doRender = flags.includes("--render");
 const snapAt = flags.find((f) => f.startsWith("--snapshot"))?.split("=")[1];
+const seed = flags.find((f) => f.startsWith("--seed="))?.split("=")[1];
 // --storyboard=<file>: render an approved storyboard as-is (web storyboard gate).
 // Skips the director LLM pass — the review-approved board is the source of truth.
 const existingStoryboard = flags.find((f) => f.startsWith("--storyboard"))?.split("=")[1];
@@ -91,6 +92,7 @@ const manifest = {
   width: 1920,
   height: 1080,
   fps: 30,
+  ...(seed ? { seed } : {}),
   scenes: storyboard.scenes.map((s) => ({ verb: s.verb, duration: s.duration, values: s.values })),
 };
 const manifestPath = join(outDir, "manifest.json");

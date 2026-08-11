@@ -10,6 +10,7 @@ import { HookPicker } from "@/components/hook-picker";
 import { costFor } from "@/lib/ledger.mjs";
 import {
   Storyboard,
+  runGuard,
   sceneAnnotation,
   sceneBadge,
   sceneSummary,
@@ -148,6 +149,7 @@ export default async function StoryboardPage({
                       hook={s.hook}
                       microhook={s.microhook}
                       tone={s.tone}
+                      approved={s.approved}
                     />
                     {hookScenes.has(i) && <HookPicker storyboardId={id} index={i} applied={s.hook} />}
                     <WhyLook lines={[a.role, a.verb, a.pacing]} />
@@ -185,6 +187,39 @@ export default async function StoryboardPage({
                 </>
               )}
             </p>
+          </div>
+
+          <div className="mt-6 rounded-card border border-border-subtle bg-surface-1 p-5">
+            <h2 className="text-[15px] font-semibold">Delivery guard</h2>
+            <p className="mt-1 text-[13px] text-text-low">
+              Pre-render contract checks from the plan — motion checks run against frames after
+              render.
+            </p>
+            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+              {runGuard(sb).map((c) => (
+                <li
+                  key={c.id}
+                  className="flex items-start gap-2 rounded-ctl border border-border-subtle bg-surface-2 px-3 py-2"
+                >
+                  <span
+                    aria-hidden
+                    className={
+                      c.status === "pass"
+                        ? "text-ok"
+                        : c.status === "warn"
+                          ? "text-warn"
+                          : "text-danger"
+                    }
+                  >
+                    {c.status === "pass" ? "✓" : c.status === "warn" ? "▲" : "✕"}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[13px] font-semibold">{c.label}</span>
+                    <span className="block text-[12px] text-text-med">{c.detail}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         </main>
       </div>

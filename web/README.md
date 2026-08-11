@@ -42,16 +42,21 @@ LLM auth is automatic: `ZEN_URL` (default `https://opencode.ai/zen/v1`),
 - `app/api/storyboards/[id]/route.ts` — dev store: read, scene PATCH, delete
 - `app/api/storyboards/[id]/hooks/route.ts` — A/B/C hook engineer (LLM)
 - `app/api/jobs/route.ts` — cost gate + job queue (POST) + refund sweep (GET)
-- `app/api/jobs/[id]/route.ts` · `[id]/video/` · `[id]/log/` — status, MP4, log
+- `app/api/jobs/[id]/route.ts` · `[id]/video/` · `[id]/log/` · `[id]/frames/[i]/` —
+  status, MP4, log, contact-sheet frames
 - `app/api/ledger/route.ts` — credits balance + transactions (local JSON)
 - `app/api/data/route.ts` — reset local storyboards/jobs (credits kept)
 - `lib/director.ts` — director agent prompt + validation retry + hook engineer
 - `lib/zen.ts` — server-only LLM client (same free line as `src/llm.mjs`)
-- `lib/storyboard.ts` — contract, validation, summaries, annotations
+- `lib/storyboard.ts` — contract, validation, summaries, annotations,
+  delivery-guard checks (`runGuard`)
 - `lib/ledger.mjs` — credits ledger (debit/credit/cost)
-- `lib/render-job.mjs` — background render worker (detached child of Next)
+- `lib/render-job.mjs` — background render worker (detached child of Next);
+  prepends `<repo>/.tools` (static ffmpeg/ffprobe) to PATH, snapshots one frame
+  per scene midpoint (contact sheets), records seed + frames on the job
 - `components/` — shell (⌘K palette, theme toggle, credits pill), button,
-  badge, scene editor, values chips, why-look, hook picker, render cost gate
+  badge, scene editor (incl. Approved toggle), values chips, why-look,
+  hook picker, render cost gate
 
 ## Design
 
@@ -62,6 +67,7 @@ reduced-motion respected. ⌘K command palette ships on all studio routes.
 
 ## Next
 
-- Scene library (approved scenes + brand kits reuse)
 - Zero-gap segment re-render (chaptered re-edit)
-- Contact-sheet scrubber on jobs (snapshot pass frames)
+- Contact-sheet scrubber (click frames → seek preview)
+- Brand-kit builder on the library page
+- Render-tier guard checks on frames (no-stasis/motion) surfaced after render

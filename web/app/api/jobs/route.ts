@@ -22,6 +22,8 @@ type JobRecord = {
   error?: string;
   videoPath?: string;
   logFile?: string;
+  frames?: string[];
+  seed?: string;
   createdAt: string;
   finishedAt?: string;
 };
@@ -73,17 +75,19 @@ export async function POST(req: NextRequest) {
   await mkdir(JOB_STORE, { recursive: true });
   const jobId = `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const jobFile = join(JOB_STORE, `${jobId}.json`);
+  const seed = Math.random().toString(36).slice(2, 8);
   const job: JobRecord = {
     id: jobId,
     storyboardId,
     status: "queued",
     stage: "queued",
     cost,
+    seed,
     createdAt: new Date().toISOString(),
   };
   await writeFile(jobFile, JSON.stringify(job, null, 2));
 
-  const child = spawn("node", [JOB_RUNNER, recordPath, jobId, jobFile], {
+  const child = spawn("node", [JOB_RUNNER, recordPath, jobId, jobFile, "", seed], {
     stdio: "ignore",
     detached: true,
   });

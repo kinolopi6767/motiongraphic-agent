@@ -55,6 +55,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       hook?: string | null;
       microhook?: string | null;
       tone?: string | null;
+      approved?: boolean;
     };
   };
   try {
@@ -95,6 +96,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (patch.hook !== undefined) scene.hook = str(patch.hook);
   if (patch.microhook !== undefined) scene.microhook = str(patch.microhook);
   if (patch.tone !== undefined) scene.tone = str(patch.tone);
+  if (patch.approved !== undefined) scene.approved = Boolean(patch.approved);
 
   record.storyboard.total = record.storyboard.scenes.reduce((a, s) => a + s.duration, 0);
   await writeFile(path, JSON.stringify(record, null, 2));

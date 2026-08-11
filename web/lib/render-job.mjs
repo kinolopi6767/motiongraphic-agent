@@ -5,21 +5,49 @@
  * --storyboard (no re-directing; the review gate is the source of truth),
  * and tracks lifecycle in the job JSON.
  *
- * Usage: node lib/render-job.mjs <storyboard-record.json> <jobId> <jobFile> [outDir]
+ * Usage: node lib/render-job.mjs <storyboard-record.json> <jobId> <jobFile> [outDir] [seed]
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 
-const [recordFile, jobId, jobFile, outDirArg] = process.argv.slice(2);
+const [recordFile, jobId, jobFile, outDirArg, seedArg] = process.argv.slice(2);
 const ROOT = process.env.PIPELINE_ROOT || resolve(process.cwd(), "..");
 const JOB_DIR = join(process.cwd(), "data", "jobs");
+
+// Ensure ffmpeg/ffprobe (static builds in <repo>/.tools) reach hyperframes.
+process.env.PATH = [join(ROOT, ".tools"), process.env.PATH].filter(Boolean).join(":");
 
 const outDir = outDirArg ? resolve(outDirArg) : join(ROOT, "output", "web-jobs");
 
 function fail(message) {
   writeFile(jobFile, JSON.stringify({ id: jobId, status: "failed", error: message }, null, 2)).catch(() => {});
   process.exit(1);
+}
+
+/** Collect contact-sheet frames written to the pipeline output since the job started. */
+async function collectFrames(sinceMs) {
+  const found = [];
+  const walk = async (dir) => {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) await walk(p);
+      else if (e.isFile() && /\.png$/i.test(e.name)) {
+        try {
+          const st = await stat(p);
+          if (st.mtimeMs >= sinceMs) found.push(p);
+        } catch {}
+      }
+    }
+  };
+  await walk(outDir);
+  return found.sort().slice(0, 24);
 }
 
 try {
@@ -50,10 +78,26 @@ try {
     )
   );
 
-  const child = spawn("node", ["src/agent.mjs", `--storyboard=${sbFile}`, `--out-dir=${outDir}`, "--render"], {
-    cwd: ROOT,
-    stdio: ["ignore", "pipe", "pipe"],
+  const seed = seedArg || undefined;
+  const startedAtMs = Date.now();
+
+  // Contact sheets: one snapshot per scene at its midpoint (PLAN §4, §9).
+  let t = 0;
+  const mids = storyboard.scenes.map((s) => {
+    const mid = t + s.duration / 2;
+    t += s.duration;
+    return mid.toFixed(2);
   });
+
+  const args = [
+    "src/agent.mjs",
+    `--storyboard=${sbFile}`,
+    `--out-dir=${outDir}`,
+    `--snapshot=${mids.join(",")}`,
+    "--render",
+  ];
+  if (seed) args.push(`--seed=${seed}`);
+  const child = spawn("node", args, { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] });
 
   let log = "";
   /** Map pipeline stderr markers -> job stage (Flow D status chips). */
@@ -91,6 +135,7 @@ try {
 
     const m = log.match(/rendered: (.+\.mp4)/);
     const videoPath = m ? resolve(m[1].trim()) : null;
+    const frames = code === 0 ? await collectFrames(startedAtMs) : [];
 
     if (code === 0 && videoPath) {
       await writeFile(
@@ -101,6 +146,8 @@ try {
             storyboardId: record.id,
             status: "done",
             videoPath,
+            frames,
+            seed,
             createdAt: new Date().toISOString(),
             finishedAt: new Date().toISOString(),
             logFile,

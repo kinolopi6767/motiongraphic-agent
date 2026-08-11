@@ -21,6 +21,7 @@ export function SceneEditor({
   hook: initialHook,
   microhook: initialMicrohook,
   tone: initialTone,
+  approved: initialApproved = false,
 }: {
   storyboardId: string;
   index: number;
@@ -30,6 +31,7 @@ export function SceneEditor({
   hook?: string;
   microhook?: string;
   tone?: string;
+  approved?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -40,6 +42,7 @@ export function SceneEditor({
   const [hook, setHook] = useState(initialHook ?? "");
   const [microhook, setMicrohook] = useState(initialMicrohook ?? "");
   const [tone, setTone] = useState(initialTone ?? "");
+  const [approved, setApproved] = useState(Boolean(initialApproved));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -77,6 +80,7 @@ export function SceneEditor({
             hook,
             microhook,
             tone,
+            approved,
           },
         }),
       });
@@ -271,6 +275,20 @@ export function SceneEditor({
             </label>
           </div>
           {error && <p className="text-[13px] text-danger">{error}</p>}
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={approved}
+              onChange={(e) => {
+                setApproved(e.target.checked);
+                setSaved(false);
+              }}
+              className="size-4 accent-[var(--accent)]"
+            />
+            <span className="text-[13px] text-text-med">
+              Approved — reusable in the scene library
+            </span>
+          </label>
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={save} disabled={saving}>
               {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}

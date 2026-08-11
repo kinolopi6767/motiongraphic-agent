@@ -14,6 +14,8 @@ type Job = {
   refunded?: boolean;
   error?: string;
   logFile?: string;
+  frames?: string[];
+  seed?: string;
   createdAt: string;
   finishedAt?: string;
 };
@@ -161,6 +163,24 @@ export default function JobsPage() {
                   />
                 )}
               </div>
+              {j.status === "done" && (j.frames?.length ?? 0) > 0 && (
+                <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1">
+                  {j.frames?.map((_, i) => (
+                    <img
+                      key={i}
+                      src={`/api/jobs/${j.id}/frames/${i}`}
+                      alt={`contact sheet ${i + 1}`}
+                      loading="lazy"
+                      className="h-14 w-24 shrink-0 rounded-ctl border border-border-subtle bg-surface-2 object-cover"
+                    />
+                  ))}
+                  {j.seed && (
+                    <span className="ml-2 shrink-0 text-[11px] tabular-nums text-text-low">
+                      seed {j.seed}
+                    </span>
+                  )}
+                </div>
+              )}
               {(j.status === "failed" || j.status === "done") && <LogViewer jobId={j.id} />}
             </li>
           ))}
