@@ -198,6 +198,9 @@ function BriefForm() {
     if (brief.trim().length < 10 || busy) return;
     setBusy(true);
     setError(null);
+    // The director can take a while; never leave the button spinning silently.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 100_000);
     try {
       const res = await fetch("/api/brief", {
         method: "POST",
@@ -210,7 +213,9 @@ function BriefForm() {
           style,
           brandKitId: brandKitId ?? undefined,
         }),
+        signal: ctrl.signal,
       });
+      clearTimeout(timer);
       if (!res.ok) {
         const d = await res.json();
         throw new Error(d.error ?? `request failed (${res.status})`);
@@ -218,7 +223,13 @@ function BriefForm() {
       const d = await res.json();
       router.push(`/studio/${d.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
+      setError(
+        e instanceof DOMException && e.name === "AbortError"
+          ? "The director took too long — is the server still running? (start it with npm run dev)"
+          : e instanceof Error
+            ? e.message
+            : "Something went wrong",
+      );
       setBusy(false);
     }
   };
