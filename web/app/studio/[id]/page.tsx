@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { Button } from "@/components/button";
+import { RenderButton } from "@/components/render-button";
+import { SceneEditor } from "@/components/scene-editor";
 import {
   Storyboard,
   sceneBadge,
@@ -76,7 +77,7 @@ export default async function StoryboardPage({
                 {sb.scenes.length} scenes · {sb.total}s · {sb.formatArchetype}
               </p>
             </div>
-            <Button>Render — credits required</Button>
+            <RenderButton storyboardId={id} />
           </div>
 
           <div className="mt-8 flex flex-col gap-4">
@@ -118,13 +119,8 @@ export default async function StoryboardPage({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 self-start lg:flex-col lg:self-center">
-                  <Button variant="outline" size="sm">
-                    Edit
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    Why look
-                  </Button>
+                <div className="flex items-center gap-2 self-start lg:flex-col lg:items-start lg:self-center">
+                  <SceneEditor storyboardId={id} index={i} verb={s.verb} initial={s.values} />
                 </div>
               </article>
             ))}

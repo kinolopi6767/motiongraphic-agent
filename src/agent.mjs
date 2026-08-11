@@ -17,17 +17,29 @@ import { execFileSync } from "node:child_process";
 import { chat } from "./llm.mjs";
 import { validateStoryboard, validateSceneValues, VERBS } from "./schema.mjs";
 
-const [scriptFile, outDirArg, ...flags] = process.argv.slice(2);
-const script = await readFile(scriptFile, "utf8");
-const outDir = resolve(outDirArg || "output/agent-runs");
+const args = process.argv.slice(2);
+const positionals = args.filter((a) => !a.startsWith("-"));
+const flags = args.filter((a) => a.startsWith("-"));
+const scriptFile = positionals[0];
+const outDirFlag = flags.find((f) => f.startsWith("--out-dir="))?.split("=")[1];
+const outDir = outDirFlag ? resolve(outDirFlag) : resolve(positionals[1] || "output/agent-runs");
 await mkdir(outDir, { recursive: true });
 
 const doRender = flags.includes("--render");
 const snapAt = flags.find((f) => f.startsWith("--snapshot"))?.split("=")[1];
+// --storyboard=<file>: render an approved storyboard as-is (web storyboard gate).
+// Skips the director LLM pass — the review-approved board is the source of truth.
+const existingStoryboard = flags.find((f) => f.startsWith("--storyboard"))?.split("=")[1];
+const script = existingStoryboard ? null : await readFile(scriptFile, "utf8");
 
 // 1) DIRECTOR
-console.error("[agent] director: storyboarding...");
 let storyboard;
+if (existingStoryboard) {
+  storyboard = JSON.parse(await readFile(existingStoryboard, "utf8"));
+  const errors = validateStoryboard(storyboard);
+  if (errors.length) throw new Error(`existing storyboard invalid: ${errors.join("; ")}`);
+  console.error(`[agent] using approved storyboard: ${existingStoryboard}`);
+} else {
 for (let attempt = 1; attempt <= 2; attempt++) {
   try {
     storyboard = await chat({
@@ -52,6 +64,7 @@ Verb contracts:
     if (attempt === 2) throw e;
   }
 }
+}
 
 // 2) SCENE AGENTS (lightweight pass: verify + refine each scene's values)
 for (const scene of storyboard.scenes) {
@@ -60,7 +73,7 @@ for (const scene of storyboard.scenes) {
   console.error(`[agent] scene "${scene.verb}" invalid: ${errs.join("; ")} — asking scene agent to fix...`);
   const fixed = await chat({
     system: `Fix the scene's values so they satisfy: ${errs.join("; ")}. Keep data faithful to the script. Return ONLY the corrected values object.`,
-    prompt: JSON.stringify({ verb: scene.verb, values: scene.values, script }),
+    prompt: JSON.stringify({ verb: scene.verb, values: scene.values, script: script ?? "no script" }),
     json: true,
   });
   scene.values = fixed;
