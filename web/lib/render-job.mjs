@@ -133,7 +133,7 @@ function valueBombIndex(scenes, total) {
 async function previousJob(storyboardId) {
   let files;
   try {
-    files = (await readdir(JOB_DIR)).filter((f) => f.endsWith(".json") && !f.includes(".storyboard."));
+    files = (await readdir(JOB_DIR)).filter((f) => /^job-[a-z0-9-]+\.json$/.test(f));
   } catch {
     return null;
   }

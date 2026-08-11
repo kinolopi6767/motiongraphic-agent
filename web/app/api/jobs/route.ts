@@ -41,7 +41,7 @@ const JOB_RUNNER = [process.cwd(), "lib", ["render-job", ".", "mjs"].join("")].j
 
 async function listJobs(): Promise<JobRecord[]> {
   await mkdir(JOB_STORE, { recursive: true });
-  const files = (await readdir(JOB_STORE)).filter((f) => f.endsWith(".json") && !f.includes(".storyboard."));
+  const files = (await readdir(JOB_STORE)).filter((f) => /^job-[a-z0-9-]+\.json$/.test(f));
   const jobs: JobRecord[] = [];
   for (const f of files) {
     try {

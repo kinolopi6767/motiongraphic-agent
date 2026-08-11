@@ -30,7 +30,7 @@ export const dynamic = "force-dynamic";
 async function latestRender(storyboardId: string): Promise<{ jobId: string } | null> {
   try {
     const { readdir, readFile } = await import("node:fs/promises");
-    const files = (await readdir(JOBS_STORE)).filter((f) => f.endsWith(".json") && !f.includes(".storyboard."));
+    const files = (await readdir(JOBS_STORE)).filter((f) => /^job-[a-z0-9-]+\.json$/.test(f));
     let best: { jobId: string; finishedAt: string } | null = null;
     for (const f of files) {
       try {
