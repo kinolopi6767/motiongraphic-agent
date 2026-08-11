@@ -8,14 +8,17 @@ const JOB_STORE = join(process.cwd(), "data", "jobs");
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params;
   if (!/^job-[a-z0-9-]+$/.test(id)) {
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
   }
+  const ratio = req.nextUrl.searchParams.get("ratio");
   let videoPath: string | undefined;
   try {
-    videoPath = JSON.parse(await readFile(join(JOB_STORE, `${id}.json`), "utf8")).videoPath;
+    const job = JSON.parse(await readFile(join(JOB_STORE, `${id}.json`), "utf8"));
+    if (ratio && job.videos?.[ratio]) videoPath = job.videos[ratio];
+    else videoPath = job.videoPath;
   } catch {
     return NextResponse.json({ error: "job not found" }, { status: 404 });
   }

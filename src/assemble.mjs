@@ -34,6 +34,21 @@ const ASSETS = join(REPO, "assets");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 const out = resolve(projectDir);
 
+// Ratio variants (one render, three ratios): the master canvas is 1920x1080;
+// other ratios wrap it in a centered, scaled container on the target canvas.
+const RATIO_SIZE = { "16:9": [1920, 1080], "1:1": [1080, 1080], "9:16": [1080, 1920] };
+const ratio = manifest.ratio && RATIO_SIZE[manifest.ratio] ? manifest.ratio : "16:9";
+const [CANVAS_W, CANVAS_H] = RATIO_SIZE[ratio];
+const SCALE = CANVAS_W / 1920;
+
+const masterBox = ratio === "16:9"
+  ? ""
+  : `<div style="position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform:translate(-50%,-50%) scale(${SCALE});transform-origin:center">
+`;
+
+const masterBoxClose = ratio === "16:9" ? "" : `</div>
+`;
+
 await mkdir(join(out, "motion-verbs"), { recursive: true });
 await mkdir(join(out, "assets", "vendor"), { recursive: true });
 await mkdir(join(out, "compositions"), { recursive: true });
@@ -62,21 +77,21 @@ for (let i = 0; i < manifest.scenes.length; i++) {
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=${manifest.width}, height=${manifest.height}" />
+    <meta name="viewport" content="width=${CANVAS_W}, height=${CANVAS_H}" />
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: ${manifest.width}px; height: ${manifest.height}px; overflow: hidden; background: #000; }
+      html, body { width: ${CANVAS_W}px; height: ${CANVAS_H}px; overflow: hidden; background: #000; }
     </style>
   </head>
   <body>
     <div data-composition-id="${manifest.id}-seg${i}" data-start="0" data-duration="${sc.duration}"
-         data-width="${manifest.width}" data-height="${manifest.height}" data-fps="${manifest.fps}"
+         data-width="${CANVAS_W}" data-height="${CANVAS_H}" data-fps="${manifest.fps}"
          data-no-timeline>
-      <div id="scene-${i + 1}-${sc.verb}" data-composition-id="s${i + 1}-${sc.verb}"
+${masterBox}      <div id="scene-${i + 1}-${sc.verb}" data-composition-id="s${i + 1}-${sc.verb}"
            data-composition-src="motion-verbs/${sc.verb}.html"
            data-start="0" data-duration="${sc.duration}"
            data-variable-values='${JSON.stringify(values)}'></div>
-    </div>
+${masterBoxClose}    </div>
   </body>
 </html>
 `;
@@ -88,18 +103,19 @@ const html = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=${manifest.width}, height=${manifest.height}" />
+    <meta name="viewport" content="width=${CANVAS_W}, height=${CANVAS_H}" />
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: ${manifest.width}px; height: ${manifest.height}px; overflow: hidden; background: #000; }
+      html, body { width: ${CANVAS_W}px; height: ${CANVAS_H}px; overflow: hidden; background: #000; }
     </style>
   </head>
   <body>
     <div data-composition-id="${manifest.id}" data-start="0" data-duration="${total}"
-         data-width="${manifest.width}" data-height="${manifest.height}" data-fps="${manifest.fps}"
+         data-width="${CANVAS_W}" data-height="${CANVAS_H}" data-fps="${manifest.fps}"
          data-no-timeline>
+${masterBox}
 ${embeds.join("\n")}
-    </div>
+${masterBoxClose}    </div>
   </body>
 </html>
 `;

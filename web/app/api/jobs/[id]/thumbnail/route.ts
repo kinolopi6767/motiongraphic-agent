@@ -9,14 +9,15 @@ const JOB_STORE = join(process.cwd(), "data", "jobs");
 type Params = { params: Promise<{ id: string }> };
 
 /** Thumbnail.jpg extracted at the value-bomb time (PLAN §4). */
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params;
   if (!/^job-[a-z0-9-]+$/.test(id)) {
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
   }
+  const ratio = req.nextUrl.searchParams.get("ratio");
   try {
     const job = JSON.parse(await readFile(join(JOB_STORE, `${id}.json`), "utf8"));
-    const thumbPath = job.thumbnailPath;
+    const thumbPath = ratio && job.thumbnails?.[ratio] ? job.thumbnails[ratio] : job.thumbnailPath;
     if (!thumbPath || typeof thumbPath !== "string") {
       return NextResponse.json({ error: "no thumbnail" }, { status: 404 });
     }

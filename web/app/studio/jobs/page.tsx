@@ -24,6 +24,9 @@ type Job = {
   motion?: Motion[];
   segments?: string[];
   thumbnailPath?: string;
+  thumbnails?: Record<string, string>;
+  videos?: Record<string, string>;
+  ratios?: string[];
   sfx?: boolean;
   voice?: { tier?: string; words?: number; error?: string } | null;
   seed?: string;
@@ -91,9 +94,11 @@ function Filmstrip({ job }: { job: Job }) {
   const [captionsOn, setCaptionsOn] = useState(false);
   const [active, setActive] = useState<string | null>(null);
   const [words, setWords] = useState<{ word: string; start: number; end: number }[] | null>(null);
+  const [ratio, setRatio] = useState<string | null>(null);
   const frames = job.frames ?? [];
   const times = job.frameTimes ?? [];
   const hasVoice = (job.voice?.words ?? 0) > 0;
+  const ratios = job.ratios ?? [];
 
   const loadWords = () => {
     if (words || !hasVoice) return;
@@ -168,12 +173,31 @@ function Filmstrip({ job }: { job: Job }) {
         </p>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-3">
+        {ratios.length > 1 && (
+          <div className="flex gap-1.5" role="group" aria-label="Video ratio">
+            {ratios.map((r) => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={ratio === r}
+                onClick={() => setRatio(ratio === r ? null : r)}
+                className={`rounded-full border px-2 py-0.5 text-[12px] transition-colors ${
+                  ratio === r
+                    ? "border-accent bg-accent-soft font-semibold text-accent-strong"
+                    : "border-border-subtle text-text-med hover:text-text-hi"
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        )}
         <video
           ref={videoRef}
-          src={`/api/jobs/${job.id}/video`}
+          src={`/api/jobs/${job.id}/video${ratio ? `?ratio=${encodeURIComponent(ratio)}` : ""}`}
           controls
           preload="metadata"
-          poster={job.thumbnailPath ? `/api/jobs/${job.id}/thumbnail` : undefined}
+          poster={job.thumbnailPath ? `/api/jobs/${job.id}/thumbnail${ratio ? `?ratio=${encodeURIComponent(ratio)}` : ""}` : undefined}
           onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
           onTimeUpdate={onTime}
           className="h-24 w-40 rounded-ctl border border-border-subtle bg-surface-2"

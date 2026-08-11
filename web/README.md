@@ -84,8 +84,7 @@ reduced-motion respected. ⌘K command palette ships on all studio routes.
 
 ## Next
 
-- Ratio variants in one pass (one render, three ratios — needs template
-  dimension templating; current templates are fixed 1920×1080)
+- 8 motion systems (4 verbs ship today) + shader transitions
 - Render-tier guard: ASR verification + caption-coverage checks when narration
   is on (needs a keyed Deepgram run to validate live)
 - Team share / comments (Phase 5+, needs accounts — out of local-only scope)

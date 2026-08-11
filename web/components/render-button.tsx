@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/button";
 
+const RATIOS = ["16:9", "1:1", "9:16"] as const;
+
 export function RenderButton({
   storyboardId,
   costEstimate,
@@ -17,6 +19,7 @@ export function RenderButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [seed, setSeed] = useState(() => Math.random().toString(36).slice(2, 8));
+  const [ratios, setRatios] = useState<string[]>(["16:9"]);
 
   useEffect(() => {
     if (!confirming) return;
@@ -39,7 +42,7 @@ export function RenderButton({
       const res = await fetch("/api/jobs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ storyboardId, seed }),
+        body: JSON.stringify({ storyboardId, seed, ratios }),
       });
       if (res.status === 402) {
         const d = await res.json();
@@ -58,7 +61,8 @@ export function RenderButton({
     }
   };
 
-  const insufficient = balance !== null && balance < costEstimate;
+  const insufficient = balance !== null && balance < costEstimate * ratios.length;
+  const totalCost = costEstimate * ratios.length;
 
   return (
     <div className="flex flex-col items-end gap-2">
@@ -78,8 +82,8 @@ export function RenderButton({
             <h2 className="text-[17px] font-semibold">Start render?</h2>
             <p className="mt-2 text-[14px] leading-relaxed text-text-med">
               This job costs{" "}
-              <span className="font-semibold text-text-hi">{costEstimate} credits</span> (1 credit
-              per 15s of video).{" "}
+              <span className="font-semibold text-text-hi">{totalCost} credits</span> (1 credit per
+              15s of video per ratio).{" "}
               {balance !== null && (
                 <>
                   Balance: <span className="font-semibold tabular-nums">{balance}</span>.
@@ -87,6 +91,36 @@ export function RenderButton({
               )}{" "}
               Failed renders auto-refund.
             </p>
+            <fieldset className="mt-3">
+              <legend className="text-[12px] font-medium text-text-low">Ratios</legend>
+              <div className="mt-1.5 flex gap-2">
+                {RATIOS.map((r) => (
+                  <label
+                    key={r}
+                    className={`flex min-h-[36px] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-ctl border text-[13px] transition-colors ${
+                      ratios.includes(r)
+                        ? "border-accent bg-accent-soft font-semibold text-accent-strong"
+                        : "border-border-subtle text-text-med hover:text-text-hi"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={ratios.includes(r)}
+                      onChange={() =>
+                        setRatios((rs) => (rs.includes(r) ? rs.filter((x) => x !== r) : [...rs, r]))
+                      }
+                      className="sr-only"
+                    />
+                    {r}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-[12px] text-text-low">
+                {ratios.length > 1
+                  ? "One render pass, three ratios — the 16:9 master is scaled into safe-zone canvases."
+                  : "The 16:9 master renders natively."}
+              </p>
+            </fieldset>
             <div className="mt-2 text-[13px] text-text-med">
               <span className="font-medium text-text-hi">Free:</span> storyboards, edits, snapshots.
             </div>
@@ -121,7 +155,7 @@ export function RenderButton({
               <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
                 Cancel
               </Button>
-              <Button size="sm" onClick={start} disabled={busy || insufficient}>
+              <Button size="sm" onClick={start} disabled={busy || insufficient || ratios.length === 0}>
                 {busy ? "Queuing…" : "Confirm & queue"}
               </Button>
             </div>

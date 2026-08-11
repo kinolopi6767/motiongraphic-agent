@@ -31,6 +31,7 @@ const seed = flags.find((f) => f.startsWith("--seed="))?.split("=")[1];
 const sceneOnly = flags.find((f) => f.startsWith("--scene="))?.split("=")[1]
   ? Number(flags.find((f) => f.startsWith("--scene=")).split("=")[1])
   : undefined;
+const ratioFlag = flags.find((f) => f.startsWith("--ratio="))?.split("=")[1];
 // --storyboard=<file>: render an approved storyboard as-is (web storyboard gate).
 // Skips the director LLM pass — the review-approved board is the source of truth.
 const existingStoryboard = flags.find((f) => f.startsWith("--storyboard"))?.split("=")[1];
@@ -95,6 +96,7 @@ const manifest = {
   width: 1920,
   height: 1080,
   fps: 30,
+  ...(ratioFlag ? { ratio: ratioFlag } : {}),
   ...(seed ? { seed } : {}),
   scenes: storyboard.scenes.map((s) => ({ verb: s.verb, duration: s.duration, values: s.values })),
 };
