@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/button";
 import { ModelSettings } from "@/components/model-settings";
+import { UsageSection } from "@/components/usage-section";
 import { VoiceSettings } from "@/components/voice-settings";
 
 type Tx = { kind: "debit" | "credit"; amount: number; reason: string; at: string };
@@ -85,6 +86,13 @@ export default function SettingsPage() {
           <h2 className="text-[15px] font-semibold">AI model</h2>
           <div className="mt-3 rounded-card border border-border-subtle bg-surface-1 p-5">
             <ModelSettings />
+          </div>
+        </section>
+
+        <section aria-label="Usage" className="mt-8">
+          <h2 className="text-[15px] font-semibold">Token usage</h2>
+          <div className="mt-3 rounded-card border border-border-subtle bg-surface-1 p-5">
+            <UsageSection />
           </div>
         </section>
 

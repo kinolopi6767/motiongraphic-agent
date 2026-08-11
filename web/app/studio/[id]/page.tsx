@@ -53,6 +53,7 @@ export default async function StoryboardPage({
     brandKitName?: string;
     palette?: string[];
     voiceTier?: string;
+    usage?: { at: string; kind: string; model: string; prompt: number; completion: number; total: number }[];
     createdAt: string;
   };
   try {
@@ -65,6 +66,7 @@ export default async function StoryboardPage({
   const hookScenes = new Set<number>([0]);
   if (bombIdx > 0) hookScenes.add(bombIdx);
   const prevRender = await hasPreviousRender(id);
+  const usageTotal = (record.usage ?? []).reduce((a, u) => a + (u.total ?? 0), 0);
 
   return (
     <AppShell projectTitle={sb.title}>
@@ -130,6 +132,12 @@ export default async function StoryboardPage({
                   ))}
                   <span className="ml-1 text-[12px] text-text-low">brand kit</span>
                 </div>
+              )}
+              {usageTotal > 0 && (
+                <p className="mt-1 text-[12px] tabular-nums text-text-low">
+                  {(record.usage ?? []).length} LLM call{(record.usage ?? []).length === 1 ? "" : "s"} ·{" "}
+                  {usageTotal.toLocaleString()} tokens
+                </p>
               )}
             </div>
             <div className="flex items-start gap-2">

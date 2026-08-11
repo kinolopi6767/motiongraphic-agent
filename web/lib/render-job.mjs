@@ -255,6 +255,9 @@ try {
   const voiceEnabled = Boolean(voice?.enabled) && Boolean(voice?.apiKey);
   const env = { ...process.env };
   if (config.llm?.model) env.LLM_MODEL = config.llm.model;
+  if (config.llm?.provider) env.LLM_PROVIDER = config.llm.provider;
+  if (config.llm?.baseUrl) env.LLM_BASE_URL = config.llm.baseUrl;
+  if (config.llm?.apiKey) env.LLM_API_KEY = config.llm.apiKey;
   if (voiceEnabled) {
     env.DEEPGRAM_API_KEY = voice.apiKey;
     if (voice.ttsModel) env.DEEPGRAM_TTS_MODEL = voice.ttsModel;

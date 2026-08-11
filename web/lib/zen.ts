@@ -3,12 +3,20 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 /**
- * Server-only Zen LLM client (same free line as the pipeline's src/llm.mjs).
- * Key resolution: env VISION_API_KEY / OPENCODE_API_KEY, else opencode auth.json.
- * Model: config.json llm.model (Settings → AI model), env ZEN_MODEL/LLM_MODEL override.
+ * Server-only LLM client. Providers:
+ *   zen       — OpenCode Zen gateway (auto-uses the opencode-go key attached
+ *               to opencode; no key needed). Free lines: mimo-v2.5-free,
+ *               deepseek-v4-flash-free; paid: deepseek-v4-flash (needs credits).
+ *   openai    — OpenAI Chat Completions (sk-… key).
+ *   anthropic — Claude Messages API (sk-ant-… key).
+ *   deepseek  — DeepSeek Chat Completions (sk-… key).
+ * Config from data/config.json (Settings → AI model); env overrides:
+ * ZEN_URL / LLM_PROVIDER / LLM_BASE_URL / LLM_API_KEY / LLM_MODEL.
  */
+
 const ZEN_URL = process.env.ZEN_URL || "https://opencode.ai/zen/v1";
-const DEFAULT_MODEL = process.env.ZEN_MODEL || process.env.LLM_MODEL || "mimo-v2.5-free";
+
+export type Usage = { model: string; prompt: number; completion: number; total: number };
 
 async function authKey(): Promise<string> {
   for (const p of [
@@ -28,31 +36,97 @@ async function authKey(): Promise<string> {
   throw new Error("no opencode/zen auth key found");
 }
 
-async function model(): Promise<string> {
+type Cfg = { provider: string; model: string; baseUrl: string; apiKey: string };
+
+async function cfg(): Promise<Cfg> {
+  const defaults = {
+    provider: process.env.LLM_PROVIDER || "zen",
+    model: process.env.LLM_MODEL || "mimo-v2.5-free",
+    baseUrl: process.env.LLM_BASE_URL || ZEN_URL,
+    apiKey: process.env.LLM_API_KEY || "",
+  };
   try {
     const { readConfig } = await import("@/lib/config");
-    return (await readConfig()).llm.model || DEFAULT_MODEL;
+    const c = await readConfig();
+    return {
+      provider: c.llm.provider,
+      model: c.llm.model,
+      baseUrl: c.llm.baseUrl || defaults.baseUrl,
+      apiKey: c.llm.apiKey || defaults.apiKey,
+    };
   } catch {
-    return DEFAULT_MODEL;
+    return defaults;
   }
 }
 
-export async function chatJson<T>(system: string, prompt: string, temperature = 0.4): Promise<T> {
-  const key = await authKey();
-  const res = await fetch(`${ZEN_URL}/chat/completions`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: await model(),
-      temperature,
-      messages: [
-        { role: "system", content: system + "\n\nReply with ONLY valid JSON. No markdown fences." },
-        { role: "user", content: prompt },
-      ],
-    }),
-  });
+async function apiKeyFor(c: Cfg): Promise<string> {
+  if (c.provider === "zen") return await authKey(); // zen always uses the attached opencode-go key
+  if (c.apiKey) return c.apiKey;
+  throw new Error(`${c.provider} provider needs an API key — set it in Settings → AI model`);
+}
+
+function normalizeUsage(c: Cfg, raw: { usage?: Record<string, number> }): Usage {
+  const u = raw.usage ?? {};
+  const prompt = u.prompt_tokens ?? u.input_tokens ?? 0;
+  const completion = u.completion_tokens ?? u.output_tokens ?? 0;
+  return { model: c.model, prompt, completion, total: prompt + completion };
+}
+
+async function request<T>(c: Cfg, system: string, prompt: string, temperature: number): Promise<{ json: T; usage: Usage }> {
+  const key = await apiKeyFor(c);
+  const url = `${c.baseUrl.replace(/\/$/, "")}/chat/completions`;
+  const messages = [
+    { role: "system", content: system + "\n\nReply with ONLY valid JSON. No markdown fences." },
+    { role: "user", content: prompt },
+  ];
+
+  let res: Response;
+  if (c.provider === "anthropic") {
+    res = await fetch(`${c.baseUrl.replace(/\/$/, "")}/messages`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: c.model,
+        max_tokens: 4096,
+        temperature,
+        system: messages[0].content,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+  } else {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model: c.model, temperature, messages }),
+    });
+  }
   if (!res.ok) throw new Error(`LLM ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = await res.json();
-  const text: string = data.choices?.[0]?.message?.content ?? "";
-  return JSON.parse(text.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim()) as T;
+  const text: string =
+    c.provider === "anthropic"
+      ? (data.content ?? [])
+          .filter((b: { type: string }) => b.type === "text")
+          .map((b: { text: string }) => b.text)
+          .join("")
+      : (data.choices?.[0]?.message?.content ?? "");
+  const json = JSON.parse(text.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim()) as T;
+  return { json, usage: normalizeUsage(c, data) };
+}
+
+/** JSON call that also returns token usage (brief, hooks, voice-tier). */
+export async function chatJsonU<T>(
+  system: string,
+  prompt: string,
+  temperature = 0.4,
+): Promise<{ json: T; usage: Usage }> {
+  return request<T>(await cfg(), system, prompt, temperature);
+}
+
+/** Plain JSON call (usage discarded). */
+export async function chatJson<T>(system: string, prompt: string, temperature = 0.4): Promise<T> {
+  return (await chatJsonU<T>(system, prompt, temperature)).json;
 }

@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     if (body.brandKitId && !kit) {
       return NextResponse.json({ error: "brand kit not found" }, { status: 404 });
     }
-    const storyboard = await runDirector(brief, {
+    const { storyboard, usage } = await runDirector(brief, {
       ...body,
       ratio,
       brandKit: kit ? { name: kit.name, colors: kit.colors, vibe: kit.vibe } : undefined,
@@ -56,9 +56,14 @@ export async function POST(req: NextRequest) {
     // Voice-tier gate (PLAN §7): classified per video — AI-OK / Hybrid / Human-only.
     let voiceTier: string | undefined;
     const cfg = await readConfig();
+    const usageLog: { at: string; kind: string; model: string; prompt: number; completion: number; total: number }[] = [
+      { at: new Date().toISOString(), kind: "director", ...usage },
+    ];
     if (cfg.voice.enabled && cfg.voice.apiKey) {
       try {
-        voiceTier = await classifyVoiceTier(brief, storyboard);
+        const t = await classifyVoiceTier(brief, storyboard);
+        voiceTier = t.tier;
+        usageLog.push({ at: new Date().toISOString(), kind: "voice-tier", ...t.usage });
       } catch {
         voiceTier = "AI-OK";
       }
@@ -76,6 +81,7 @@ export async function POST(req: NextRequest) {
           brandKitName: kit?.name,
           palette: kit?.colors,
           voiceTier,
+          usage: usageLog,
           storyboard,
           createdAt: new Date().toISOString(),
         },
@@ -83,7 +89,7 @@ export async function POST(req: NextRequest) {
         2,
       ),
     );
-    return NextResponse.json({ id, storyboard: storyboard as Storyboard, voiceTier });
+    return NextResponse.json({ id, storyboard: storyboard as Storyboard, voiceTier, usage: usageLog });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "director failed" }, { status: 502 });
   }
@@ -97,9 +103,12 @@ const TIERS = ["AI-OK", "Hybrid", "Human-only"] as const;
  * Hybrid    — documentary/explainer: AI body + human hook/outro.
  * Human-only— emotion/story: engine exports voice-direction only.
  */
-async function classifyVoiceTier(brief: string, storyboard: unknown): Promise<(typeof TIERS)[number]> {
-  const { chatJson } = await import("@/lib/zen");
-  const d = await chatJson<{ tier?: string }>(
+async function classifyVoiceTier(
+  brief: string,
+  storyboard: unknown,
+): Promise<{ tier: (typeof TIERS)[number]; usage: { model: string; prompt: number; completion: number; total: number } }> {
+  const { chatJsonU } = await import("@/lib/zen");
+  const { json: d, usage } = await chatJsonU<{ tier?: string }>(
     `You are the VOICE-TIER GATE of an agentic motion-graphics engine.
 Classify the video by trust threshold & emotion load into exactly one tier:
 - AI-OK: data/news/technical explainers where a clean AI voice is trusted.
@@ -109,5 +118,8 @@ Return ONLY valid JSON: {"tier":"..."}.`,
     JSON.stringify({ brief, formatArchetype: (storyboard as { formatArchetype?: string })?.formatArchetype, scenes: (storyboard as { scenes?: { verb: string }[] })?.scenes?.map((s) => s.verb) }),
   );
   const tier = d?.tier;
-  return TIERS.includes(tier as (typeof TIERS)[number]) ? (tier as (typeof TIERS)[number]) : "AI-OK";
+  return {
+    tier: TIERS.includes(tier as (typeof TIERS)[number]) ? (tier as (typeof TIERS)[number]) : "AI-OK",
+    usage,
+  };
 }

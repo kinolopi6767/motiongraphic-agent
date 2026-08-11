@@ -17,6 +17,9 @@ export async function PUT(req: NextRequest) {
     tier?: unknown;
     dictionary?: unknown;
     model?: unknown;
+    provider?: unknown;
+    baseUrl?: unknown;
+    llmApiKey?: unknown;
   };
   try {
     body = await req.json();
@@ -24,8 +27,23 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   }
   const cfg = await readConfig();
+  if (body.provider !== undefined) {
+    const p = String(body.provider);
+    if (!["zen", "openai", "anthropic", "deepseek"].includes(p)) {
+      return NextResponse.json({ error: "provider must be zen | openai | anthropic | deepseek" }, { status: 400 });
+    }
+    cfg.llm.provider = p as typeof cfg.llm.provider;
+    cfg.llm.baseUrl = (await import("@/lib/config")).LLM_PROVIDERS[p as keyof typeof import("@/lib/config").LLM_PROVIDERS].baseUrl;
+  }
+  if (body.baseUrl !== undefined && typeof body.baseUrl === "string" && body.baseUrl.startsWith("http")) {
+    cfg.llm.baseUrl = body.baseUrl.trim();
+  }
   if (body.model !== undefined && typeof body.model === "string" && body.model.trim().length > 2) {
     cfg.llm.model = body.model.trim();
+  }
+  if (body.llmApiKey !== undefined && body.llmApiKey !== null) {
+    const k = String(body.llmApiKey).trim();
+    cfg.llm.apiKey = k;
   }
   if (body.enabled !== undefined) cfg.voice.enabled = Boolean(body.enabled);
   if (body.apiKey !== undefined) {

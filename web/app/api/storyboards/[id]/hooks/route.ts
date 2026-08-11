@@ -27,7 +27,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const path = join(STORE, `${id}.json`);
-  let record: { storyboard: Storyboard; hooks?: Record<string, HookOption[]> };
+  let record: {
+    storyboard: Storyboard;
+    hooks?: Record<string, HookOption[]>;
+    usage?: { at: string; kind: string; model: string; prompt: number; completion: number; total: number }[];
+  };
   try {
     record = JSON.parse(await readFile(path, "utf8"));
   } catch {
@@ -42,11 +46,15 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const options = await runHooks(scene);
+    const { options, usage } = await runHooks(scene);
     if (!record.hooks) record.hooks = {};
     record.hooks[body.index] = options;
+    record.usage = [
+      ...(record.usage ?? []),
+      { at: new Date().toISOString(), kind: "hooks", ...usage },
+    ];
     await writeFile(path, JSON.stringify(record, null, 2));
-    return NextResponse.json({ options });
+    return NextResponse.json({ options, usage });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "hook engineer failed" }, { status: 502 });
   }

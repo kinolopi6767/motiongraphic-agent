@@ -1,4 +1,4 @@
-import { chatJson } from "./zen";
+import { chatJsonU } from "./zen";
 import { HookOption, Storyboard, VERBS, validateStoryboard } from "./storyboard";
 
 const HOOKS_SYSTEM = `You are the HOOK ENGINEER of an agentic motion-graphics engine.
@@ -9,17 +9,19 @@ that entices into the next scene. Keep all claims faithful to the given values.
 Never fabricate numbers. Return ONLY valid JSON: {"options":[...]}.`;
 
 /** A/B/C hooks — 3 retention variants for a scene (Flow B step 2). */
-export async function runHooks(scene: Storyboard["scenes"][number]): Promise<HookOption[]> {
-  const data = await chatJson<{ options?: HookOption[] }>(
+export async function runHooks(
+  scene: Storyboard["scenes"][number],
+): Promise<{ options: HookOption[]; usage: { model: string; prompt: number; completion: number; total: number } }> {
+  const { json, usage } = await chatJsonU<{ options?: HookOption[] }>(
     HOOKS_SYSTEM,
     JSON.stringify({ verb: scene.verb, values: scene.values, currentHook: scene.hook, currentMicrohook: scene.microhook }),
     0.7,
   );
-  const options = (data.options ?? [])
+  const options = (json.options ?? [])
     .filter((o) => o && typeof o.hook === "string" && o.hook.trim().length > 0)
     .slice(0, 3);
   if (options.length < 1) throw new Error("hook engineer produced no options");
-  return options;
+  return { options, usage };
 }
 
 const DIRECTOR_SYSTEM = `You are the DIRECTOR AGENT of an agentic motion-graphics video engine.
@@ -43,11 +45,11 @@ storyboard.json fields: title, formatArchetype (case-study|data-explainer|system
 scenes[] each {verb, duration, values, hook?, microhook?, tone?}.
 No filler scenes — only what the brief earns.`;
 
-/** Runs the director agent with one validation retry. */
+/** Runs the director agent with one validation retry. Returns usage too. */
 export async function runDirector(
   brief: string,
   opts?: { duration?: number; tone?: string; ratio?: string; brandKit?: { name: string; colors: string[]; vibe: string } },
-): Promise<Storyboard> {
+): Promise<{ storyboard: Storyboard; usage: { model: string; prompt: number; completion: number; total: number } }> {
   const extras = [
     opts?.duration ? `Target duration: ${opts.duration}s.` : "",
     opts?.tone ? `Tone: ${opts.tone}.` : "",
@@ -60,16 +62,18 @@ export async function runDirector(
     .join("\n");
 
   let lastErr: unknown;
+  let usage = { model: "unknown", prompt: 0, completion: 0, total: 0 };
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const sb = await chatJson<Storyboard>(
+      const { json: sb, usage: u } = await chatJsonU<Storyboard>(
         DIRECTOR_SYSTEM,
         `BRIEF:\n${brief}\n\n${extras}\n\n${VALUES_CONTRACT}`,
       );
+      usage = u;
       const errors = validateStoryboard(sb);
       if (!errors.length) {
         sb.total = sb.scenes.reduce((a, s) => a + s.duration, 0);
-        return sb;
+        return { storyboard: sb, usage };
       }
       lastErr = new Error(`storyboard invalid: ${errors.join("; ")}`);
     } catch (e) {

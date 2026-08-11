@@ -12,13 +12,53 @@ export type VoiceConfig = {
   dictionary: string[];
 };
 
+export type LlmProvider = "zen" | "openai" | "anthropic" | "deepseek";
+
 export type LlmConfig = {
+  provider: LlmProvider;
   model: string;
+  baseUrl: string;
+  apiKey: string;
 };
 
 export type AppConfig = {
   voice: VoiceConfig;
   llm: LlmConfig;
+};
+
+/** Provider presets (base URLs + starter models). Keys stay server-side. */
+export const LLM_PROVIDERS: Record<
+  LlmProvider,
+  { label: string; baseUrl: string; models: string[]; needsKey: boolean; note: string }
+> = {
+  zen: {
+    label: "OpenCode Zen",
+    baseUrl: "https://opencode.ai/zen/v1",
+    models: ["deepseek-v4-flash-free", "mimo-v2.5-free", "deepseek-v4-flash"],
+    needsKey: false,
+    note: "Uses the opencode-go key already attached to opencode — no key to paste.",
+  },
+  openai: {
+    label: "ChatGPT (OpenAI)",
+    baseUrl: "https://api.openai.com/v1",
+    models: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"],
+    needsKey: true,
+    note: "Requires an OpenAI API key.",
+  },
+  anthropic: {
+    label: "Claude (Anthropic)",
+    baseUrl: "https://api.anthropic.com/v1",
+    models: ["claude-sonnet-4-5", "claude-haiku-4-5"],
+    needsKey: true,
+    note: "Requires an Anthropic API key.",
+  },
+  deepseek: {
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com/v1",
+    models: ["deepseek-chat", "deepseek-reasoner"],
+    needsKey: true,
+    note: "Requires a DeepSeek API key.",
+  },
 };
 
 export const AURA_VOICES = [
@@ -44,7 +84,10 @@ const DEFAULT_CONFIG: AppConfig = {
     dictionary: [],
   },
   llm: {
+    provider: "zen",
     model: "mimo-v2.5-free",
+    baseUrl: LLM_PROVIDERS.zen.baseUrl,
+    apiKey: "",
   },
 };
 
@@ -79,7 +122,10 @@ export function sanitizeConfig(cfg: AppConfig) {
       dictionary: cfg.voice.dictionary,
     },
     llm: {
+      provider: cfg.llm.provider,
       model: cfg.llm.model,
+      baseUrl: cfg.llm.baseUrl,
+      hasKey: cfg.llm.apiKey.length > 0,
     },
   };
 }

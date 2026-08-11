@@ -52,13 +52,30 @@ LLM auth is automatic: `ZEN_URL` (default `https://opencode.ai/zen/v1`),
   `[id]/captions/` · `[id]/words/` · `[id]/thumbnail/` — status, MP4, log,
   contact-sheet frames, WebVTT captions, word timestamps, value-bomb thumbnail
 - `app/api/config/` — voice config (Deepgram; GET sanitized / PUT / POST test)
-- `app/api/config/llm-test/` — probe the configured AI model (free lines:
-  `mimo-v2.5-free`, `deepseek-v4-flash-free`, via the OpenCode Zen gateway with
-  the local opencode-go key; paid `deepseek-v4-flash` needs account credits)
+- `app/api/config/llm-test/` — probe the configured AI model, returns token usage
+- `app/api/usage/` — aggregate token usage across storyboards (by model, per board)
+
+## AI models
+
+One model powers the director, hook engineer, voice-tier gate and the render
+pipeline (via `LLM_PROVIDER`/`LLM_MODEL`/`LLM_BASE_URL`/`LLM_API_KEY` env the
+worker sets from `data/config.json`). Settings → AI model:
+
+- **OpenCode Zen** (default, no key needed — auto-uses the opencode-go key
+  attached to opencode): `deepseek-v4-flash-free` (free), `mimo-v2.5-free`
+  (free), `deepseek-v4-flash` (paid — needs account credits).
+- **ChatGPT (OpenAI)** — Chat Completions, sk-… key.
+- **Claude (Anthropic)** — Messages API, sk-ant-… key.
+- **DeepSeek** — official API, sk-… key.
+
+Keys are stored server-side in `data/config.json` (the pipeline needs them too;
+nothing sensitive goes to browser storage). Token usage is captured from every
+LLM response (`usage` on storyboard records; totals in Settings → Token usage).
 - `app/api/ledger/route.ts` — credits balance + transactions (local JSON)
 - `app/api/data/route.ts` — reset local storyboards/jobs (credits kept)
+- `lib/zen.ts` — server-only LLM client: zen (auto opencode-go key) + OpenAI +
+  Anthropic + DeepSeek providers, JSON mode, token-usage capture (`chatJsonU`)
 - `lib/director.ts` — director agent prompt + validation retry + hook engineer
-- `lib/zen.ts` — server-only LLM client (same free line as `src/llm.mjs`)
 - `lib/storyboard.ts` — contract, validation, summaries, annotations,
   delivery-guard checks (`runGuard`)
 - `lib/ledger.mjs` — credits ledger (debit/credit/cost)
