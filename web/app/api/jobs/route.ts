@@ -20,6 +20,7 @@ type JobRecord = {
   kind?: "full" | "segment";
   sceneIndex?: number;
   ratios?: string[];
+  quality?: string;
   videos?: Record<string, string>;
   thumbnails?: Record<string, string>;
   ratioRuns?: Record<string, string>;
@@ -54,6 +55,7 @@ async function listJobs(): Promise<JobRecord[]> {
 }
 
 const RATIOS = ["16:9", "1:1", "9:16"];
+const QUALITIES = ["normal", "medium", "max"] as const;
 
 async function previousDoneJob(storyboardId: string): Promise<JobRecord | null> {
   const jobs = await listJobs();
@@ -64,7 +66,7 @@ async function previousDoneJob(storyboardId: string): Promise<JobRecord | null> 
 }
 
 export async function POST(req: NextRequest) {
-  let body: { storyboardId?: string; seed?: string; sceneIndex?: number; ratios?: string[] };
+  let body: { storyboardId?: string; seed?: string; sceneIndex?: number; ratios?: string[]; quality?: string };
   try {
     body = await req.json();
   } catch {
@@ -76,7 +78,7 @@ export async function POST(req: NextRequest) {
   }
 
   const recordPath = join(SB_STORE, `${storyboardId}.json`);
-  let record: { storyboard: { total: number; scenes: { duration: number }[] }; ratio?: string };
+  let record: { storyboard: { total: number; scenes: { duration: number }[] }; ratio?: string; quality?: string };
   try {
     record = JSON.parse(await readFile(recordPath, "utf8"));
   } catch {
@@ -112,6 +114,10 @@ export async function POST(req: NextRequest) {
     ? record.storyboard.scenes[sceneIndex].duration
     : (record.storyboard?.total ?? 8);
 
+  const quality = QUALITIES.includes(body.quality as (typeof QUALITIES)[number])
+    ? (body.quality as (typeof QUALITIES)[number])
+    : (record.quality as (typeof QUALITIES)[number] | undefined) ?? "max";
+
   // Cost gate (Flow D): deduct BEFORE enqueue, refund on failure (swept in GET).
   const cost = costFor(billedSeconds) * ratios.length;
   try {
@@ -137,6 +143,7 @@ export async function POST(req: NextRequest) {
     kind,
     sceneIndex,
     ratios,
+    quality,
     cost,
     seed: finalSeed,
     createdAt: new Date().toISOString(),
@@ -145,7 +152,7 @@ export async function POST(req: NextRequest) {
 
   const child = spawn(
     "node",
-    [JOB_RUNNER, recordPath, jobId, jobFile, "", finalSeed, kind, sceneIndex !== undefined ? String(sceneIndex) : "", ratios.join(",")],
+    [JOB_RUNNER, recordPath, jobId, jobFile, "", finalSeed, kind, sceneIndex !== undefined ? String(sceneIndex) : "", ratios.join(","), quality],
     {
       stdio: "ignore",
       detached: true,
@@ -153,7 +160,7 @@ export async function POST(req: NextRequest) {
   );
   child.unref();
 
-  return NextResponse.json({ id: jobId, status: "queued", cost, kind, sceneIndex, ratios }, { status: 202 });
+  return NextResponse.json({ id: jobId, status: "queued", cost, kind, sceneIndex, ratios, quality }, { status: 202 });
 }
 
 export async function GET() {

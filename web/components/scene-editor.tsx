@@ -275,6 +275,26 @@ export function SceneEditor({
             </label>
           </div>
           {error && <p className="text-[13px] text-danger">{error}</p>}
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[12px] font-medium text-text-low">background (#hex)</span>
+              <input
+                value={String(draft.bg ?? "")}
+                onChange={(e) => set("bg", e.target.value)}
+                placeholder="e.g. #0B0E13"
+                className="min-h-[36px] rounded-ctl border border-border-subtle bg-surface-1 px-2.5 text-[14px] outline-none focus:border-accent"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[12px] font-medium text-text-low">text color (#hex)</span>
+              <input
+                value={String(draft.textColor ?? "")}
+                onChange={(e) => set("textColor", e.target.value)}
+                placeholder="e.g. #F2F4F8"
+                className="min-h-[36px] rounded-ctl border border-border-subtle bg-surface-1 px-2.5 text-[14px] outline-none focus:border-accent"
+              />
+            </label>
+          </div>
           <label className="flex items-center gap-2">
             <input
               type="checkbox"

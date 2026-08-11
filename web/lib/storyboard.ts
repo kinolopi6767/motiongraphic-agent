@@ -41,6 +41,16 @@ export const STYLES = {
 export type StyleId = keyof typeof STYLES;
 export const STYLE_IDS = Object.keys(STYLES) as StyleId[];
 
+/** Render quality tiers — max = higher bitrate + extra animation layers. */
+export const QUALITY = {
+  normal: { label: "Normal", crf: 23, maxMotion: false, desc: "Fast render, standard encode." },
+  medium: { label: "Medium", crf: 19, maxMotion: false, desc: "Cleaner encode, same motion." },
+  max: { label: "Max", crf: 14, maxMotion: true, desc: "Highest bitrate + extra ambient animation layers." },
+} as const;
+
+export type QualityId = keyof typeof QUALITY;
+export const QUALITY_IDS = Object.keys(QUALITY) as QualityId[];
+
 /** First scene whose start lands in the 60-70% value-bomb band (or -1). */
 export function valueBombIndex(scenes: StoryboardScene[], total: number): number {
   let t = 0;

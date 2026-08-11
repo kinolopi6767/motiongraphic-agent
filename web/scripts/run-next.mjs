@@ -35,14 +35,25 @@ const isBusy = (port) =>
     s.once("error", () => resolve(false));
   });
 
-let port = 3000;
-for (let p = 3000; p < 3100; p++) {
-  if (!(await isBusy(p))) {
-    port = p;
-    break;
+let port = Number(process.env.PORT) || 0;
+if (port) {
+  if (await isBusy(port)) {
+    console.error(`Port ${port} is busy (another project?) — probing a free port instead.`);
+    port = 0;
+  }
+}
+if (!port) {
+  for (let p = 3000; p < 3100; p++) {
+    if (!(await isBusy(p))) {
+      port = p;
+      break;
+    }
   }
 }
 
 console.log(`⚡ MotionGraphic Agent ${mode} → http://localhost:${port}`);
+if (port !== 3000) {
+  console.log(`   (port 3000 is used by another project — open the URL above, NOT localhost:3000)`);
+}
 const child = spawn(nextBin, [mode, "-p", String(port)], { stdio: "inherit" });
 child.on("exit", (code) => process.exit(code ?? 0));

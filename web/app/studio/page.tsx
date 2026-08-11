@@ -7,8 +7,7 @@ import { Button } from "@/components/button";
 
 type Kit = { id: string; name: string; colors: string[]; vibe: string };
 
-const STYLES = [
-  { id: "studio-black", label: "Studio Black", swatches: ["#0B0E13", "#6366F1", "#818CF8", "#F2F4F8"], desc: "Dark canvas, crisp, indigo accent — the default." },
+const STYLES = [  { id: "studio-black", label: "Studio Black", swatches: ["#0B0E13", "#6366F1", "#818CF8", "#F2F4F8"], desc: "Dark canvas, crisp, indigo accent — the default." },
   { id: "neon", label: "Neon Nights", swatches: ["#05010F", "#22D3EE", "#E879F9"], desc: "Electric cyan + magenta on near-black." },
   { id: "paper", label: "Minimal Paper", swatches: ["#F6F7F9", "#1F2430", "#4F46E5"], desc: "Light paper canvas, dark ink, one accent." },
   { id: "luxury", label: "Luxury Gold", swatches: ["#0D0B08", "#C9A227", "#F5E6C4"], desc: "Black + gold — premium, quiet drama." },
@@ -57,6 +56,51 @@ function StylePicker({
               <span className="text-[13px] font-medium">{s.label}</span>
             </span>
             <span className="mt-1 block text-[11px] leading-snug text-text-low">{s.desc}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+const QUALITY_OPTS = [
+  { id: "normal", label: "Normal", desc: "fast render" },
+  { id: "medium", label: "Medium", desc: "cleaner encode" },
+  { id: "max", label: "Max", desc: "highest bitrate + extra animation" },
+] as const;
+
+function QualityPicker({
+  selected,
+  onChange,
+}: {
+  selected: string;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2 sm:col-span-2">
+      <legend className="text-[14px] font-medium text-text-med">Render quality</legend>
+      <div className="flex flex-wrap gap-2">
+        {QUALITY_OPTS.map((q) => (
+          <label
+            key={q.id}
+            className={`flex min-h-[44px] cursor-pointer items-center gap-2 rounded-ctl border px-3 text-[13px] transition-colors ${
+              selected === q.id
+                ? "border-accent bg-accent-soft font-semibold text-accent-strong"
+                : "border-border-subtle bg-surface-1 text-text-med hover:text-text-hi"
+            }`}
+          >
+            <input
+              type="radio"
+              name="quality"
+              value={q.id}
+              checked={selected === q.id}
+              onChange={() => onChange(q.id)}
+              className="sr-only"
+            />
+            {q.label}
+            <span className={`text-[11px] font-normal ${selected === q.id ? "text-accent-strong" : "text-text-low"}`}>
+              {q.desc}
+            </span>
           </label>
         ))}
       </div>
@@ -177,6 +221,7 @@ function BriefForm() {
   const [ratio, setRatio] = useState("16:9");
   const [brandKitId, setBrandKitId] = useState<string | null>(search.get("kit"));
   const [style, setStyle] = useState("studio-black");
+  const [quality, setQuality] = useState("max");
   const [kits, setKits] = useState<Kit[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -211,6 +256,7 @@ function BriefForm() {
           tone: tone || undefined,
           ratio,
           style,
+          quality,
           brandKitId: brandKitId ?? undefined,
         }),
         signal: ctrl.signal,
@@ -223,13 +269,17 @@ function BriefForm() {
       const d = await res.json();
       router.push(`/studio/${d.id}`);
     } catch (e) {
-      setError(
-        e instanceof DOMException && e.name === "AbortError"
-          ? "The director took too long — is the server still running? (start it with npm run dev)"
-          : e instanceof Error
-            ? e.message
-            : "Something went wrong",
-      );
+      if (e instanceof TypeError) {
+        setError("Can't reach the server — make sure `npm run dev` is running, then reload this page.");
+      } else {
+        setError(
+          e instanceof DOMException && e.name === "AbortError"
+            ? "The director took too long — is the server still running? (start it with npm run dev)"
+            : e instanceof Error
+              ? e.message
+              : "Something went wrong",
+        );
+      }
       setBusy(false);
     }
   };
@@ -315,6 +365,7 @@ function BriefForm() {
           </label>
           <KitPicker selected={brandKitId} onChange={setBrandKitId} kits={kits} />
           <StylePicker selected={style} onChange={setStyle} />
+          <QualityPicker selected={quality} onChange={setQuality} />
           <ModelQuickPick />
         </div>
 

@@ -41,6 +41,7 @@
       .bar-label { margin-top: 28px; text-align: center; font-size: 34px; letter-spacing: 0.04em; opacity: 0.75; }
       .medal { position: absolute; top: -150px; right: 0; left: 0; margin: 0 auto; width: 96px; height: 96px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 48px; opacity: 0; }
       #halo { position: absolute; top: 220px; left: 50%; width: 700px; height: 700px; transform: translateX(-50%); filter: blur(90px); opacity: 0; pointer-events: none; }
+      #maxlayer { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
     </style>
   </head>
   <body>
@@ -51,6 +52,7 @@
         <div class="orb" id="orb3"></div>
         <div id="halo"></div>
       </div>
+      <div id="maxlayer"></div>
       <div class="clip" data-start="0" data-duration="7.6" data-track-index="1">
         <div id="title"></div>
         <div id="chart"></div>
@@ -161,6 +163,21 @@
       const ex = t0 + D * 0.92;
       tl.to(bars.map((b) => b.bar), { scaleY: 0, transformOrigin: "50% 100%", duration: 0.5, stagger: 0.05, ease: "power2.in" }, ex);
       tl.to("#title", { autoAlpha: 0, y: -20, duration: 0.45, ease: "power2.in" }, ex + 0.1);
+
+      // ---------- MAX QUALITY · extra ambient particle layer ----------
+      if (v.maxMotion) {
+        const layer = document.getElementById("maxlayer");
+        layer.style.opacity = 1;
+        let s = 9090;
+        const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+        for (let i = 0; i < 30; i++) {
+          const p = document.createElement("div");
+          const size = 4 + rnd() * 8;
+          p.style.cssText = `position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:${rgba(ACCENT, 0.45)};filter:blur(${(1.5 + rnd() * 5).toFixed(1)}px);left:${(rnd() * 100).toFixed(1)}%;top:${(rnd() * 100).toFixed(1)}%`;
+          layer.appendChild(p);
+          tl.to(p, { y: (rnd() - 0.5) * 240, x: (rnd() - 0.5) * 200, opacity: 0.1 + rnd() * 0.3, duration: 3 + rnd() * 4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + rnd() * 2);
+        }
+      }
 
       window.__timelines["verb-chart-race"] = tl;
     </script>

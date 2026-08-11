@@ -5,6 +5,8 @@ import { AppShell } from "@/components/app-shell";
 import { CloneButton } from "@/components/clone-button";
 import { ReRenderSceneButton } from "@/components/re-render-scene-button";
 import { RenderButton } from "@/components/render-button";
+import { RewriteSceneButton } from "@/components/rewrite-scene-button";
+import { SceneVideoChunk } from "@/components/scene-video-chunk";
 import { SceneEditor } from "@/components/scene-editor";
 import { WhyLook } from "@/components/why-look";
 import { ValuesChips } from "@/components/values-chips";
@@ -24,19 +26,29 @@ const JOBS_STORE = join(process.cwd(), "data", "jobs");
 
 export const dynamic = "force-dynamic";
 
-/** True when the storyboard has at least one previous done render (segment cache). */
-async function hasPreviousRender(storyboardId: string): Promise<boolean> {
+/** Latest done render for the storyboard (segment cache + scene-chunk previews). */
+async function latestRender(storyboardId: string): Promise<{ jobId: string } | null> {
   try {
     const { readdir, readFile } = await import("node:fs/promises");
     const files = (await readdir(JOBS_STORE)).filter((f) => f.endsWith(".json") && !f.includes(".storyboard."));
+    let best: { jobId: string; finishedAt: string } | null = null;
     for (const f of files) {
       try {
         const j = JSON.parse(await readFile(join(JOBS_STORE, f), "utf8"));
-        if (j.storyboardId === storyboardId && j.status === "done" && Array.isArray(j.segments) && j.segments.length > 0) return true;
+        if (
+          j.storyboardId === storyboardId &&
+          j.status === "done" &&
+          Array.isArray(j.segments) &&
+          j.segments.length > 0 &&
+          (!best || (j.finishedAt || "") > best.finishedAt)
+        ) {
+          best = { jobId: j.id, finishedAt: j.finishedAt ?? "" };
+        }
       } catch {}
     }
+    return best ? { jobId: best.jobId } : null;
   } catch {}
-  return false;
+  return null;
 }
 
 export default async function StoryboardPage({
@@ -49,6 +61,8 @@ export default async function StoryboardPage({
     storyboard: Storyboard;
     brief: string;
     ratio?: string;
+    style?: string;
+    quality?: string;
     brandKitId?: string;
     brandKitName?: string;
     palette?: string[];
@@ -65,7 +79,8 @@ export default async function StoryboardPage({
   const bombIdx = valueBombIndex(sb.scenes, sb.total);
   const hookScenes = new Set<number>([0]);
   if (bombIdx > 0) hookScenes.add(bombIdx);
-  const prevRender = await hasPreviousRender(id);
+  const prevRender = await latestRender(id);
+  const hasRender = prevRender !== null;
   const usageTotal = (record.usage ?? []).reduce((a, u) => a + (u.total ?? 0), 0);
 
   return (
@@ -142,7 +157,7 @@ export default async function StoryboardPage({
             </div>
             <div className="flex items-start gap-2">
               <CloneButton storyboardId={id} />
-              <RenderButton storyboardId={id} costEstimate={costFor(sb.total)} />
+              <RenderButton storyboardId={id} costEstimate={costFor(sb.total)} initialQuality={record.quality} />
             </div>
           </div>
 
@@ -187,6 +202,7 @@ export default async function StoryboardPage({
                         </span>
                       )}
                     </div>
+                    {prevRender && <SceneVideoChunk jobId={prevRender.jobId} index={i} />}
                   </div>
                   <div className="flex flex-col items-start gap-3 self-start lg:items-start lg:self-center">
                     <SceneEditor
@@ -205,8 +221,9 @@ export default async function StoryboardPage({
                       storyboardId={id}
                       index={i}
                       cost={costFor(s.duration)}
-                      hasPreviousRender={prevRender}
+                      hasPreviousRender={hasRender}
                     />
+                    <RewriteSceneButton storyboardId={id} index={i} />
                     <WhyLook lines={[a.role, a.verb, a.pacing]} />
                   </div>
                 </article>

@@ -49,6 +49,7 @@
         position: absolute; top: 260px; left: 50%; width: 620px; height: 620px;
         transform: translateX(-50%); filter: blur(90px); opacity: 0; pointer-events: none;
       }
+      #maxlayer { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
     </style>
   </head>
   <body>
@@ -59,6 +60,7 @@
         <div class="orb" id="orb3"></div>
         <div id="halo"></div>
       </div>
+      <div id="maxlayer"></div>
       <div class="clip" data-start="0" data-duration="7.6" data-track-index="1">
         <div id="value">
           <span id="prefix"></span>
@@ -156,6 +158,21 @@
 
       // camera drift
       tl.fromTo("#camera", { scale: 1.0 }, { scale: 1.06, duration: D, ease: "sine.inOut" }, t0);
+
+      // ---------- MAX QUALITY · extra ambient particle layer ----------
+      if (v.maxMotion) {
+        const layer = document.getElementById("maxlayer");
+        layer.style.opacity = 1;
+        let s = 1122;
+        const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+        for (let i = 0; i < 24; i++) {
+          const p = document.createElement("div");
+          const size = 5 + rnd() * 9;
+          p.style.cssText = `position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:${rgba(ACCENT, 0.5)};filter:blur(${(2 + rnd() * 5).toFixed(1)}px);left:${(rnd() * 100).toFixed(1)}%;top:${(rnd() * 100).toFixed(1)}%`;
+          layer.appendChild(p);
+          tl.to(p, { y: (rnd() - 0.5) * 220, x: (rnd() - 0.5) * 140, opacity: 0.12 + rnd() * 0.32, duration: 3 + rnd() * 4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + rnd() * 2);
+        }
+      }
 
       window.__timelines["verb-count-up"] = tl;
     </script>

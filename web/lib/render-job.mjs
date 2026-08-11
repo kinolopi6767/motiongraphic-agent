@@ -17,11 +17,13 @@ import { cp, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 
-const [recordFile, jobId, jobFile, outDirArg, seedArg, kindArg, sceneIndexArg, ratiosArg] = process.argv.slice(2);
+const [recordFile, jobId, jobFile, outDirArg, seedArg, kindArg, sceneIndexArg, ratiosArg, qualityArg] = process.argv.slice(2);
 const ROOT = process.env.PIPELINE_ROOT || resolve(process.cwd(), "..");
 const JOB_DIR = join(process.cwd(), "data", "jobs");
 const kind = kindArg === "segment" ? "segment" : "full";
 const sceneIndex = kind === "segment" ? Number(sceneIndexArg) : undefined;
+const quality = ["normal", "medium", "max"].includes(qualityArg) ? qualityArg : "max";
+const CRF = { normal: 23, medium: 19, max: 14 }[quality];
 
 // Ensure ffmpeg/ffprobe (static builds in <repo>/.tools) reach hyperframes.
 process.env.PATH = [join(ROOT, ".tools"), process.env.PATH].filter(Boolean).join(":");
@@ -307,6 +309,8 @@ try {
       `--out-dir=${runRoot}`,
       snapArg,
       `--ratio=${ratio}`,
+      `--crf=${CRF}`,
+      "--max-motion",
       "--render",
     ];
     if (sceneIndex !== undefined) args.push(`--scene=${sceneIndex}`);
@@ -473,6 +477,7 @@ try {
         kind,
         sceneIndex,
         ratios,
+        quality,
         videoPath: videos[primaryRatio],
         videos,
         thumbnailPath: thumbnails[primaryRatio],

@@ -32,6 +32,8 @@ const sceneOnly = flags.find((f) => f.startsWith("--scene="))?.split("=")[1]
   ? Number(flags.find((f) => f.startsWith("--scene=")).split("=")[1])
   : undefined;
 const ratioFlag = flags.find((f) => f.startsWith("--ratio="))?.split("=")[1];
+const crfFlag = flags.find((f) => f.startsWith("--crf="))?.split("=")[1];
+const maxMotion = flags.includes("--max-motion");
 // --storyboard=<file>: render an approved storyboard as-is (web storyboard gate).
 // Skips the director LLM pass — the review-approved board is the source of truth.
 const existingStoryboard = flags.find((f) => f.startsWith("--storyboard"))?.split("=")[1];
@@ -97,6 +99,7 @@ const manifest = {
   height: 1080,
   fps: 30,
   ...(ratioFlag ? { ratio: ratioFlag } : {}),
+  ...(maxMotion ? { maxMotion: true } : {}),
   ...(seed ? { seed } : {}),
   scenes: storyboard.scenes.map((s) => ({ verb: s.verb, duration: s.duration, values: s.values })),
 };
@@ -125,11 +128,9 @@ if (doRender) {
       throw new Error(`invalid scene index: ${i}`);
     }
     const segOut = join(segDir, `seg-${i}.mp4`);
-    execFileSync(
-      "npx",
-      ["hyperframes", "render", projectDir, "-c", `compositions/scene-${i}.html`, "-o", segOut, "--quiet"],
-      { stdio: "inherit" }
-    );
+    const renderArgs = ["hyperframes", "render", projectDir, "-c", `compositions/scene-${i}.html`, "-o", segOut, "--quiet"];
+    if (crfFlag) renderArgs.push(`--crf=${crfFlag}`);
+    execFileSync("npx", renderArgs, { stdio: "inherit" });
     console.error(`[agent] segment ${i}: ${segOut}`);
   }
 }

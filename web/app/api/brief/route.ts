@@ -5,7 +5,7 @@ import { runDirector } from "@/lib/director";
 import { Storyboard } from "@/lib/storyboard";
 import { readKit } from "@/lib/brand-kits";
 import { readConfig } from "@/lib/config";
-import { STYLES, STYLE_IDS } from "@/lib/storyboard";
+import { STYLES, STYLE_IDS, QUALITY_IDS } from "@/lib/storyboard";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -18,6 +18,7 @@ type BriefBody = {
   tone?: string;
   ratio?: string;
   style?: string;
+  quality?: string;
   brandKitId?: string;
 };
 
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
   }
   const style = STYLE_IDS.includes(body.style as never) ? (body.style as (typeof STYLE_IDS)[number]) : "studio-black";
   const styleDef = STYLES[style];
+  const quality = QUALITY_IDS.includes(body.quality as never) ? (body.quality as (typeof QUALITY_IDS)[number]) : "max";
 
   try {
     const kit = body.brandKitId ? await readKit(body.brandKitId) : null;
@@ -89,6 +91,7 @@ export async function POST(req: NextRequest) {
           brief,
           ratio,
           style,
+          quality,
           brandKitId: kit?.id,
           brandKitName: kit?.name,
           palette: kit?.colors,

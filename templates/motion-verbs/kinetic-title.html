@@ -42,6 +42,7 @@
         position: absolute; left: 188px; right: 188px; height: 96px; top: 0;
         filter: blur(48px); opacity: 0; pointer-events: none;
       }
+      #maxlayer { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
     </style>
   </head>
   <body>
@@ -51,6 +52,7 @@
         <div class="orb" id="orb2"></div>
         <div class="orb" id="orb3"></div>
       </div>
+      <div id="maxlayer"></div>
       <div class="clip" data-start="0" data-duration="7.6" data-track-index="1">
         <div id="kicker"></div>
         <div id="glowbar"></div>
@@ -139,6 +141,22 @@
       // camera: continuous drift + settle (R1 camera language)
       tl.fromTo("#camera", { scale: 1.0 }, { scale: 1.05, duration: D, ease: "sine.inOut" }, t0);
       tl.to("#camera", { rotation: 0.35, duration: D / 2, ease: "sine.inOut", repeat: 1, yoyo: true }, t0);
+
+      // ---------- MAX QUALITY · extra ambient particle layer ----------
+      if (v.maxMotion) {
+        const layer = document.getElementById("maxlayer");
+        layer.style.opacity = 1;
+        let s = 2468;
+        const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+        const N = 26;
+        for (let i = 0; i < N; i++) {
+          const p = document.createElement("div");
+          const size = 6 + rnd() * 10;
+          p.style.cssText = `position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:${rgba(ACCENT, 0.5)};filter:blur(${(2 + rnd() * 6).toFixed(1)}px);left:${(rnd() * 100).toFixed(1)}%;top:${(rnd() * 100).toFixed(1)}%`;
+          layer.appendChild(p);
+          tl.to(p, { y: (rnd() - 0.5) * 260, x: (rnd() - 0.5) * 180, opacity: 0.15 + rnd() * 0.35, duration: 3 + rnd() * 4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + rnd() * 2);
+        }
+      }
 
       window.__timelines["verb-kinetic-title"] = tl;
     </script>

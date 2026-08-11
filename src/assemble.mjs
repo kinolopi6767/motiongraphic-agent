@@ -64,7 +64,7 @@ for (let i = 0; i < manifest.scenes.length; i++) {
     join(VERBS, `${sc.verb}.html`),
     join(out, "motion-verbs", `${sc.verb}.html`)
   );
-  const values = { startMs: 0, sceneMs: sc.duration * 1000, ...sc.values };
+  const values = { startMs: 0, sceneMs: sc.duration * 1000, ...(manifest.maxMotion ? { maxMotion: true } : {}), ...sc.values };
   embeds.push(`      <!-- scene ${i + 1}: ${sc.verb} @${t}s -->
       <div id="scene-${i + 1}-${sc.verb}" data-composition-id="s${i + 1}-${sc.verb}"
            data-composition-src="motion-verbs/${sc.verb}.html"

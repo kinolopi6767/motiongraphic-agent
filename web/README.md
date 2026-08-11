@@ -104,6 +104,31 @@ paper-light via `data-theme="light"` or OS preference (theme toggle in the top
 bar / ⌘K). WCAG 2.2 AA tokens; focus-visible ring never removed;
 reduced-motion respected. ⌘K command palette ships on all studio routes.
 
+## How it stays premium (anti-"mass AI" notes)
+
+- **Motion density, enforced**: every scene runs a 5-phase timeline
+  (entrance → data moment → ambient loops → emphasis beat → exit) with
+  continuous drift layers. The motion guard (per-scene frame-diff score, PASS
+  ≥ 2.0) gates every render — a scene that "holds still" is flagged. Real
+  renders score 9–12.
+- **Determinism + seed families**: same seed → bit-identical output; new seed
+  → seeded variation (orbs, particles re-seeded via LCG, never Math.random at
+  runtime). Render dialog exposes the seed with re-roll.
+- **Retention contract**: cold-open hook, microhooks at every cut, value bomb
+  in the 60–70% window (thumbnail extracted there), pacing mix. Pre-render
+  delivery-guard badges surface any violation before credits are spent.
+- **Per-video identity**: 6 style presets (baked into scene values:
+  bg/textColor) + brand kits (live WCAG contrast validation) + per-scene
+  background/text overrides in the editor.
+- **Scenes are video chunks, not cards**: each scene renders as its own MP4
+  segment; the storyboard page plays each scene's chunk from the latest
+  render. Rewrite Scene re-runs the scene agent on ONE scene (plain-language
+  instruction) — zero-gap re-render then splices only that segment.
+- **Quality tiers**: normal (crf 23) / medium (crf 19) / max (crf 14 + extra
+  ambient particle layer via `maxMotion`).
+- **Audit trail**: token usage per LLM call (director/hooks/rewrites/tier),
+  motion scores, SFX RMS, render stages — nothing happens invisibly.
+
 ## Next
 
 - 8 motion systems (4 verbs ship today) + shader transitions

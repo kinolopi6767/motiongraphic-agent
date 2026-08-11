@@ -5,13 +5,20 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/button";
 
 const RATIOS = ["16:9", "1:1", "9:16"] as const;
+const QUALITIES = [
+  { id: "normal", label: "Normal", desc: "crf 23 · fastest" },
+  { id: "medium", label: "Medium", desc: "crf 19" },
+  { id: "max", label: "Max", desc: "crf 14 · extra animation" },
+] as const;
 
 export function RenderButton({
   storyboardId,
   costEstimate,
+  initialQuality,
 }: {
   storyboardId: string;
   costEstimate: number;
+  initialQuality?: string;
 }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
@@ -20,6 +27,7 @@ export function RenderButton({
   const [error, setError] = useState<string | null>(null);
   const [seed, setSeed] = useState(() => Math.random().toString(36).slice(2, 8));
   const [ratios, setRatios] = useState<string[]>(["16:9"]);
+  const [quality, setQuality] = useState(initialQuality ?? "max");
 
   useEffect(() => {
     if (!confirming) return;
@@ -42,7 +50,7 @@ export function RenderButton({
       const res = await fetch("/api/jobs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ storyboardId, seed, ratios }),
+        body: JSON.stringify({ storyboardId, seed, ratios, quality }),
       });
       if (res.status === 402) {
         const d = await res.json();
@@ -120,6 +128,33 @@ export function RenderButton({
                   ? "One render pass, three ratios — the 16:9 master is scaled into safe-zone canvases."
                   : "The 16:9 master renders natively."}
               </p>
+            </fieldset>
+            <fieldset className="mt-3">
+              <legend className="text-[12px] font-medium text-text-low">Quality</legend>
+              <div className="mt-1.5 flex gap-2">
+                {QUALITIES.map((q) => (
+                  <label
+                    key={q.id}
+                    className={`flex min-h-[36px] flex-1 cursor-pointer items-center justify-center gap-1 rounded-ctl border text-[13px] transition-colors ${
+                      quality === q.id
+                        ? "border-accent bg-accent-soft font-semibold text-accent-strong"
+                        : "border-border-subtle text-text-med hover:text-text-hi"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="quality"
+                      checked={quality === q.id}
+                      onChange={() => setQuality(q.id)}
+                      className="sr-only"
+                    />
+                    {q.label}
+                    <span className={`text-[11px] font-normal ${quality === q.id ? "text-accent-strong" : "text-text-low"}`}>
+                      {q.desc}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </fieldset>
             <div className="mt-2 text-[13px] text-text-med">
               <span className="font-medium text-text-hi">Free:</span> storyboards, edits, snapshots.

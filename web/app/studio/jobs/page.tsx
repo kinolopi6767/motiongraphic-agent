@@ -15,6 +15,7 @@ type Job = {
   stage?: string;
   kind?: "full" | "segment";
   sceneIndex?: number;
+  quality?: string;
   cost?: number;
   refunded?: boolean;
   error?: string;
@@ -348,6 +349,11 @@ export default function JobsPage() {
                         title="Zero-gap: only this scene re-rendered; the rest came from the segment cache"
                       >
                         segment · scene {j.sceneIndex !== undefined ? j.sceneIndex + 1 : "?"}
+                      </span>
+                    )}
+                    {j.quality && (
+                      <span className="rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 text-[11px] capitalize text-text-med">
+                        {j.quality}
                       </span>
                     )}
                     {typeof j.cost === "number" && (
