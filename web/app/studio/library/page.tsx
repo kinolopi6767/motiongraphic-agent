@@ -43,6 +43,24 @@ const CATALOG: Record<string, { verb: string; label: string; blurb: string; fiel
     blurb: "One metric as a living dial that fills — completion, share, score.",
     fields: ["value (number)", "label", "unit", "accent"],
   },
+  scramble: {
+    verb: "scramble",
+    label: "Scramble reveal",
+    blurb: "The word resolves through a scramble cycle — attention, decoding, reveal.",
+    fields: ["lines[1–3]", "accent"],
+  },
+  "letters-up": {
+    verb: "letters-up",
+    label: "Letters up",
+    blurb: "Characters rise into place with an overshoot — elegant editorial type.",
+    fields: ["lines[1–3]", "accent"],
+  },
+  "scan-band": {
+    verb: "scan-band",
+    label: "Scan band",
+    blurb: "A diagonal distortion band scans a clean wordmark — product-grade polish.",
+    fields: ["wordmark", "bandAngle", "accent"],
+  },
 };
 
 const STARTERS: Record<string, string> = {
@@ -52,6 +70,9 @@ const STARTERS: Record<string, string> = {
   "pipeline-flow": "Make a 40s pipeline-flow explainer of how our render pipeline works.",
   timeline: "Make a 30s timeline of our company's journey over three milestones.",
   "radial-gauge": "Make a 10s radial gauge showing our 92% customer satisfaction.",
+  scramble: "Make a 12s scramble-reveal title for our new product name.",
+  "letters-up": "Make a 10s letters-up title reveal for an editorial brand.",
+  "scan-band": "Make a 10s scan-band shot over our product wordmark.",
 };
 
 export const dynamic = "force-dynamic";

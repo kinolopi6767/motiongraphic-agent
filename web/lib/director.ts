@@ -28,9 +28,13 @@ const DIRECTOR_SYSTEM = `You are the DIRECTOR AGENT of an agentic motion-graphic
 Turn a brief into a storyboard.json. Requirements:
 - Scene verbs limited to: ${VERBS.join(", ")}.
 - VARIETY RULES (non-negotiable): use at least 2 different verbs when there are
-  3+ scenes; never use the same verb more than twice in the whole video; never
-  place the same verb in adjacent scenes. Alternate kinetic-title with data
-  verbs (count-up / chart-race / timeline / radial-gauge / pipeline-flow).
+  3+ scenes, at least 3 different verbs with 4+ scenes, 4 with 6+; never use
+  the same verb more than twice; never repeat a verb in adjacent scenes. Rotate
+  the WHOLE palette deliberately: hooks/headlines may use kinetic-title,
+  scramble, letters-up or scan-band (do not default to kinetic-title);
+  proof/stat beats use count-up, chart-race, radial-gauge or timeline;
+  processes use pipeline-flow. A 4-scene video should feel like 4 different
+  shows, not one show 4 times.
 - Total 8-90s, each scene 4-12s.
 - Retention contract: cold-open/hook energy in scene 1, value bomb at 60-70%,
   a forward-pull microhook at the end of each scene (hook/microhook fields).
@@ -49,6 +53,9 @@ const VALUES_CONTRACT = `Verb -> values contracts:
 - pipeline-flow:  {title:string, nodes:[{label,color?}], accent?}
 - timeline:       {title:string, events:[{label,value?,color?}], accent?}
 - radial-gauge:   {value:number, label:string, unit?, accent?}
+- scramble:       {lines:string[1-3], accent?}
+- letters-up:     {lines:string[1-3], accent?}
+- scan-band:      {wordmark:string, bandAngle?, accent?}
 
 MOTION RECIPE (optional values.recipe — pick the shot that fits the beat):
 - count-up:      "confetti" (sprint count + celebration burst — for records,
@@ -74,6 +81,8 @@ function varietyErrors(scenes: Storyboard["scenes"]) {
   for (const s of scenes) counts[s.verb] = (counts[s.verb] ?? 0) + 1;
   const errs: string[] = [];
   if (scenes.length >= 3 && Object.keys(counts).length < 2) errs.push("use at least 2 different verbs");
+  if (scenes.length >= 4 && Object.keys(counts).length < 3) errs.push(`use at least 3 different verbs (you used ${Object.keys(counts).length})`);
+  if (scenes.length >= 6 && Object.keys(counts).length < 4) errs.push(`use at least 4 different verbs (you used ${Object.keys(counts).length})`);
   for (const [verb, n] of Object.entries(counts)) {
     if (n > 2) errs.push(`verb "${verb}" used ${n} times — max 2; vary the verbs`);
   }

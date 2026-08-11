@@ -66,7 +66,10 @@ Verb contracts:
 - kinetic-title: {lines, accent?, accentOn?, kicker?}
 - pipeline-flow: {title, nodes:[{label,color?}], accent?}
 - timeline: {title, events:[{label,value?,color?}], accent?}
-- radial-gauge: {value:number, label:string, unit?, accent?}`,
+- radial-gauge: {value:number, label:string, unit?, accent?}
+- scramble: {lines:string[1-3], accent?}
+- letters-up: {lines:string[1-3], accent?}
+- scan-band: {wordmark:string, bandAngle?, accent?}`,
       json: true,
     });
     const errors = validateStoryboard(storyboard);

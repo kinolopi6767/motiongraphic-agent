@@ -2,7 +2,7 @@
 
 export type HookOption = { hook: string; microhook?: string };
 
-export const VERBS = ["count-up", "chart-race", "kinetic-title", "pipeline-flow", "timeline", "radial-gauge"] as const;
+export const VERBS = ["count-up", "chart-race", "kinetic-title", "pipeline-flow", "timeline", "radial-gauge", "scramble", "letters-up", "scan-band"] as const;
 export type Verb = (typeof VERBS)[number];
 
 export interface SceneValues {
@@ -95,6 +95,12 @@ export function sceneSummary(scene: StoryboardScene): string {
       return String(v.title ?? "timeline");
     case "radial-gauge":
       return String(v.label ?? v.value ?? "gauge");
+    case "scramble":
+      return (Array.isArray(v.lines) ? (v.lines as string[])[0] : "") || "reveal";
+    case "letters-up":
+      return (Array.isArray(v.lines) ? (v.lines as string[])[0] : "") || "letters";
+    case "scan-band":
+      return String(v.wordmark ?? "wordmark");
   }
 }
 
@@ -112,6 +118,12 @@ export function sceneBadge(scene: StoryboardScene): string {
       return "TIME";
     case "radial-gauge":
       return "GAUGE";
+    case "scramble":
+      return "CODE";
+    case "letters-up":
+      return "LIFT";
+    case "scan-band":
+      return "SCAN";
   }
 }
 
@@ -159,6 +171,18 @@ export function validateSceneValues(verb: Verb, values: SceneValues): string[] {
         errors.push("radial-gauge: value must be a number");
       if (!values.label || typeof values.label !== "string") errors.push("radial-gauge: label required");
       break;
+    case "scramble":
+      if (!Array.isArray(values.lines) || (values.lines as unknown[]).length < 1 || (values.lines as unknown[]).length > 3)
+        errors.push("scramble: lines must be 1-3");
+      break;
+    case "letters-up":
+      if (!Array.isArray(values.lines) || (values.lines as unknown[]).length < 1 || (values.lines as unknown[]).length > 3)
+        errors.push("letters-up: lines must be 1-3");
+      break;
+    case "scan-band":
+      if (!values.wordmark || typeof values.wordmark !== "string")
+        errors.push("scan-band: wordmark required");
+      break;
     default:
       errors.push(`unknown verb ${verb}`);
   }
@@ -189,6 +213,9 @@ export function sceneAnnotation(
     "pipeline-flow": "Systems view — how the parts connect.",
     timeline: "The journey drawn out — milestones across time.",
     "radial-gauge": "One metric as a living dial — completion, share, score.",
+    scramble: "The word resolves through a scramble — attention, decoding, reveal.",
+    "letters-up": "Characters rise into place — elegant, editorial typography.",
+    "scan-band": "A distortion band scans the wordmark — product-grade, glitchy polish.",
   };
 
   const pacing = scene.duration > 8 ? "Slow beat — let the data breathe." : "Quick beat — keeps the cut crisp.";

@@ -4,7 +4,7 @@
  * Director + scene agents MUST satisfy this; violations trigger agent retries.
  */
 
-export const VERBS = ["count-up", "chart-race", "kinetic-title", "pipeline-flow", "timeline", "radial-gauge"];
+export const VERBS = ["count-up", "chart-race", "kinetic-title", "pipeline-flow", "timeline", "radial-gauge", "scramble", "letters-up", "scan-band"];
 
 export const TIMING = {
   MIN_SCENE_S: 4,
@@ -72,6 +72,18 @@ export function validateSceneValues(verb, values) {
       if (typeof values.value !== "number" || values.value < 0 || values.value > 9999)
         errors.push("radial-gauge: value must be a number");
       if (!values.label || typeof values.label !== "string") errors.push("radial-gauge: label required");
+      break;
+    case "scramble":
+      if (!Array.isArray(values.lines) || values.lines.length < 1 || values.lines.length > 3)
+        errors.push("scramble: lines must be 1-3");
+      break;
+    case "letters-up":
+      if (!Array.isArray(values.lines) || values.lines.length < 1 || values.lines.length > 3)
+        errors.push("letters-up: lines must be 1-3");
+      break;
+    case "scan-band":
+      if (!values.wordmark || typeof values.wordmark !== "string")
+        errors.push("scan-band: wordmark required");
       break;
     default:
       errors.push(`unknown verb ${verb}`);

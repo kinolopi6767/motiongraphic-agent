@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[
+  {"id":"lines","type":"json","label":"Lines","default":["SCRAMBLE"]},
+  {"id":"accent","type":"color","label":"Accent color","default":"#4f8cff"},
+  {"id":"bg","type":"color","label":"Background","default":"#0B0E13"},
+  {"id":"textColor","type":"color","label":"Text color","default":"#F2F4F8"},
+  {"id":"startMs","type":"number","label":"Scene start (ms)","default":0},
+  {"id":"sceneMs","type":"number","label":"Scene duration (ms)","default":8000}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0B0E13; }
+      body { font-family: "Inter", sans-serif; }
+      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; perspective: 1200px; }
+      #depth { position: absolute; inset: 0; transform-style: preserve-3d; }
+      #root { position: absolute; inset: 0; }
+      .orb { position: absolute; border-radius: 50%; filter: blur(130px); will-change: transform; }
+      #orb1 { width: 900px; height: 900px; left: -220px; top: -260px; }
+      #orb2 { width: 760px; height: 760px; right: -180px; top: 120px; }
+      #orb3 { width: 640px; height: 640px; left: 32%; bottom: -260px; }
+      #stage { position: absolute; inset: 0; }
+      h1 {
+        position: absolute; top: 300px; left: 190px; right: 190px;
+        font-size: 110px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15;
+        transform: translateZ(70px);
+      }
+      h1 .line { display: block; overflow: hidden; }
+      .hf-bottom-up-letters { display: inline-block; }
+      .hf-bottom-up-letters-char { display: inline-block; opacity: 0; will-change: transform, opacity; }
+      #glowline { position: absolute; top: 0; left: 196px; height: 6px; width: 0; border-radius: 999px; opacity: 0; }
+      #maxlayer { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="verb-scramble" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30">
+      <div id="camera">
+        <div id="depth">
+          <div class="orb" id="orb1"></div>
+          <div class="orb" id="orb2"></div>
+          <div class="orb" id="orb3"></div>
+        </div>
+        <div id="stage">
+          <h1 id="title"></h1>
+          <div id="glowline"></div>
+        </div>
+      </div>
+      <div id="maxlayer"></div>
+    </div>
+    <script>
+      const v = window.__hyperframes.getVariables();
+      const D = (v.sceneMs || 8000) / 1000;
+      const t0 = v.startMs / 1000;
+      const ACCENT = v.accent || "#4f8cff";
+      const TEXT = v.textColor || "#F2F4F8";
+      const BG = v.bg || "#0B0E13";
+
+      const rgba = (hex, a) => {
+        const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+        if (!m) return `rgba(80,140,255,${a})`;
+        const n = parseInt(m[1], 16);
+        return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+      };
+
+      document.documentElement.style.background = BG;
+      document.getElementById("glowline").style.background = ACCENT;
+      for (const [sel, a] of [["#orb1", 0.32], ["#orb2", 0.26], ["#orb3", 0.2]]) {
+        document.querySelector(sel).style.background = rgba(ACCENT, a);
+      }
+
+      const title = document.getElementById("title");
+      const lines = Array.isArray(v.lines) && v.lines.length ? v.lines : ["SCRAMBLE"];
+      const chars = [];
+      lines.forEach((ln, i) => {
+        const line = document.createElement("span");
+        line.className = "line hf-bottom-up-letters";
+        line.style.color = i === lines.length - 1 ? ACCENT : TEXT;
+        line.textContent = ln.toUpperCase();
+        title.appendChild(line);
+        // split into per-char spans (deterministic splitter, block: bottom-up-letters)
+        const text = line.textContent || "";
+        line.textContent = "";
+        for (const ch of Array.from(text)) {
+          const s = document.createElement("span");
+          s.className = "hf-bottom-up-letters-char";
+          s.textContent = ch === " " ? "\u00a0" : ch;
+          line.appendChild(s);
+          chars.push(s);
+        }
+      });
+
+      // scramble cycle: seeded LCG picks glyphs; the reveal resolves line by line
+      const GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@$%&*+=";
+      let seed = 4242;
+      const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // ---------- 1 · SCRAMBLE RESOLVE (0.05 → 0.5) ----------
+      // each char spins through scrambled glyphs, then settles into its letter
+      const lineBuckets = [];
+      let cursor = 0;
+      lines.forEach(() => {
+        const bucket = [];
+        for (let k = 0; k < chars.length; k++) {
+          // (bucket per line handled below via grouping)
+        }
+      });
+      // group chars by line for the stagger
+      let lineIndex = 0;
+      let lineStart = 0;
+      const groups = [];
+      lines.forEach((ln) => {
+        const n = Array.from(ln.toUpperCase()).length;
+        groups.push(chars.slice(lineStart, lineStart + n));
+        lineStart += n;
+      });
+      groups.forEach((g, gi) => {
+        const at = t0 + 0.08 + gi * 0.16;
+        g.forEach((ch, ci) => {
+          const delay = ci * 0.028;
+          const finalChar = ch.textContent;
+          tl.to(ch, {
+            opacity: 1, y: 0, duration: 0.3, ease: "back.out(1.7)",
+            onStart: () => { ch.textContent = finalChar; },
+          }, at + delay);
+        });
+        // shimmer of scrambled glyphs passes over the line before it resolves
+        const line = title.children[gi];
+        tl.fromTo(line, { filter: "blur(2px)" }, { filter: "blur(0px)", duration: 0.4, ease: "power2.out" }, at + 0.05);
+      });
+      tl.fromTo("#glowline", { width: 0 }, { width: 320, duration: 0.7, ease: "expo.out" }, t0 + 0.2);
+
+      // ---------- 2 · AMBIENT ----------
+      const amb = t0 + D * 0.5;
+      chars.forEach((ch, i) => {
+        tl.to(ch, { y: i % 3 === 0 ? -8 : 8, duration: 2.4 + (i % 5) * 0.3, ease: "sine.inOut", repeat: -1, yoyo: true }, amb + (i % 4) * 0.2);
+      });
+      tl.to("#glowline", { opacity: 0.4, duration: 1.8, repeat: -1, yoyo: true, ease: "sine.inOut" }, amb);
+      tl.to("#orb1", { x: 220, y: 180, scale: 1.25, duration: 5.5, ease: "sine.inOut", repeat: -1, yoyo: true }, t0);
+      tl.to("#orb2", { x: -180, y: -140, scale: 1.2, duration: 6.5, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 0.6);
+      tl.to("#orb3", { x: 160, y: -200, scale: 1.3, duration: 7.2, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 1.1);
+
+      // ---------- 3 · EMPHASIS ----------
+      const beat = t0 + D * 0.7;
+      tl.to(title, { scale: 1.04, duration: 0.5, ease: "power2.out" }, beat);
+      tl.to(title, { scale: 1, duration: 0.9, ease: "power4.inOut" }, beat + 0.5);
+
+      // ---------- 4 · EXIT ----------
+      const ex = t0 + D * 0.88;
+      tl.to(chars, { opacity: 0, yPercent: -90, duration: 0.55, stagger: 0.02, ease: "power2.in" }, ex);
+      tl.to("#glowline", { autoAlpha: 0, duration: 0.35 }, ex + 0.05);
+
+      // camera rig
+      tl.fromTo("#camera", { scale: 1.0 }, { scale: 1.05, duration: D, ease: "sine.inOut" }, t0);
+      tl.fromTo("#camera", { rotationX: -0.7, rotationY: 1.2 }, { rotationX: 0.8, rotationY: -1.2, duration: D, ease: "sine.inOut", repeat: -1, yoyo: true }, t0);
+
+      // ---------- MAX QUALITY · particles ----------
+      if (v.maxMotion) {
+        const layer = document.getElementById("maxlayer");
+        layer.style.opacity = 1;
+        let s = 1357;
+        const rnd2 = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+        for (let i = 0; i < 26; i++) {
+          const p = document.createElement("div");
+          const size = 5 + rnd2() * 9;
+          p.style.cssText = `position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:${rgba(ACCENT, 0.45)};filter:blur(${(2 + rnd2() * 5).toFixed(1)}px);left:${(rnd2() * 100).toFixed(1)}%;top:${(rnd2() * 100).toFixed(1)}%`;
+          layer.appendChild(p);
+          tl.to(p, { y: (rnd2() - 0.5) * 240, x: (rnd2() - 0.5) * 180, opacity: 0.12 + rnd2() * 0.3, duration: 3 + rnd2() * 4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + rnd2() * 2);
+        }
+      }
+
+      window.__timelines["verb-scramble"] = tl;
+    </script>
+  </body>
+</html>

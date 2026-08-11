@@ -89,19 +89,10 @@ const MOTION_PASS_THRESHOLD = 2.0; // mean gray diff per pixel (0-255)
 /**
  * No-stasis check (PLAN §5, render tier): diff consecutive contact-sheet
  * frames within each scene; a scene with near-zero drift failed the check.
- * timeline = [{type:"scene",index,verb,duration}|{type:"trans",duration}].
+ * windows = [{from,to,scene}] in COMPOSITION coordinates (no transitions —
+ * snapshots run on the scene-only composition).
  */
-function measureMotion(frames, timeline) {
-  const windows = [];
-  let t = 0;
-  for (const item of timeline) {
-    if (item.type !== "scene") {
-      t += item.duration;
-      continue;
-    }
-    windows.push({ from: t, to: t + item.duration, duration: item.duration, scene: item.index });
-    t += item.duration;
-  }
+function measureMotion(frames, windows) {
   const byScene = windows.map(() => []);
   for (const p of frames) {
     const m = /at-([\d.]+)s\.png$/.exec(p);
@@ -119,7 +110,7 @@ function measureMotion(frames, timeline) {
     const score = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
     return {
       scene: w.scene,
-      duration: w.duration,
+      duration: w.to - w.from,
       frames: ps.length,
       score: Number(score.toFixed(2)),
       pass: score >= MOTION_PASS_THRESHOLD,
@@ -346,23 +337,27 @@ try {
   }
   const segmentCount = storyboard.scenes.length * 2 - 1;
 
-  // snapshot times: 3 per scene + 1 per transition midpoint
-  let t = 0;
-  const ats = [];
-  for (const item of timeline) {
-    if (item.type === "scene") {
-      const open = Math.min(t + 0.8, t + item.duration - 0.2);
-      const mid = t + item.duration / 2;
-      const close = Math.max(t + item.duration - 0.8, mid + 0.1);
-      for (const at of [open, mid, close]) {
-        if (at >= t && at < t + item.duration && at < total + (storyboard.scenes.length - 1) * TRANS_S - 0.1) {
-          ats.push(Number(at.toFixed(2)));
-        }
-      }
-    } else {
-      ats.push(Number((t + item.duration / 2).toFixed(2)));
+  // Snapshot/motion coordinates are COMPOSITION time (index.html holds scenes
+  // only, no transitions): 3 samples per scene, clamped inside [0, total).
+  // frameTimes are mapped to VIDEO time (composition time + transitions before
+  // the scene) so the scrubber seeks correctly in the spliced video.
+  const sceneWindows = [];
+  {
+    let tt = 0;
+    for (let i = 0; i < storyboard.scenes.length; i++) {
+      const d = storyboard.scenes[i].duration;
+      sceneWindows.push({ from: tt, to: tt + d, scene: i });
+      tt += d;
     }
-    t += item.duration;
+  }
+  const ats = [];
+  for (const w of sceneWindows) {
+    const open = Math.min(w.from + 0.6, w.to - 0.35);
+    const mid = Math.min(w.from + (w.to - w.from) * 0.5, w.to - 0.25);
+    const close = Math.min(w.to - 0.5, w.to - 0.1);
+    for (const at of [open, mid, close]) {
+      if (at > w.from + 0.15 && at < w.to - 0.1 && at < total - 0.2) ats.push(Number(at.toFixed(2)));
+    }
   }
   const snapArg = `--snapshot=${ats.join(",")}`;
 
@@ -567,10 +562,14 @@ try {
 
   // contact sheets + motion from the primary ratio run
   const frames = await collectFrames(join(outDir, `${jobId}-${RATIO_SLUG[primaryRatio]}`), startedAtMs);
-  const motion = frames.length >= 2 ? measureMotion(frames, timeline) : [];
+  const motion = frames.length >= 2 ? measureMotion(frames, sceneWindows) : [];
   const frameTimes = frames.map((p) => {
     const tm = /at-([\d.]+)s\.png$/.exec(p);
-    return tm ? Number(tm[1]) : null;
+    if (!tm) return null;
+    const compT = Number(tm[1]);
+    // map composition time -> video time (transitions before the scene shift it)
+    const w = sceneWindows.find((x) => compT >= x.from && compT < x.to);
+    return w ? Number((compT + w.scene * TRANS_S).toFixed(2)) : null;
   });
 
   const report = {
