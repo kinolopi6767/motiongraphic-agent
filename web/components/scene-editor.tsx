@@ -17,17 +17,29 @@ export function SceneEditor({
   index,
   verb,
   initial,
+  duration: initialDuration,
+  hook: initialHook,
+  microhook: initialMicrohook,
+  tone: initialTone,
 }: {
   storyboardId: string;
   index: number;
   verb: Verb;
   initial: Record<string, unknown>;
+  duration: number;
+  hook?: string;
+  microhook?: string;
+  tone?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Record<string, unknown>>(() =>
     JSON.parse(JSON.stringify(initial))
   );
+  const [duration, setDuration] = useState(String(initialDuration));
+  const [hook, setHook] = useState(initialHook ?? "");
+  const [microhook, setMicrohook] = useState(initialMicrohook ?? "");
+  const [tone, setTone] = useState(initialTone ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -57,7 +69,16 @@ export function SceneEditor({
       const res = await fetch(`/api/storyboards/${storyboardId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ index, scene: { values } }),
+        body: JSON.stringify({
+          index,
+          scene: {
+            duration: num(duration) ?? initialDuration,
+            values,
+            hook,
+            microhook,
+            tone,
+          },
+        }),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -138,6 +159,24 @@ export function SceneEditor({
       </Button>
       {open && (
         <div className="flex w-full min-w-[320px] flex-col gap-3 rounded-ctl border border-border-subtle bg-surface-2 p-3">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[12px] font-medium text-text-low">duration (s, 4-12)</span>
+              <input
+                type="number"
+                min={4}
+                max={12}
+                value={duration}
+                onChange={(e) => {
+                  setDuration(e.target.value);
+                  setSaved(false);
+                  setError(null);
+                }}
+                className="min-h-[36px] rounded-ctl border border-border-subtle bg-surface-1 px-2.5 text-[14px] outline-none focus:border-accent"
+              />
+            </label>
+            {input("accent", "e.g. #818cf8")}
+          </div>
           {verb === "count-up" && (
             <>
               <label className="flex flex-col gap-1">
@@ -154,7 +193,6 @@ export function SceneEditor({
                 {input("prefix", "e.g. $")}
                 {input("suffix", "e.g. %")}
               </div>
-              {input("accent", "e.g. #818cf8")}
             </>
           )}
           {verb === "chart-race" && (
@@ -165,7 +203,6 @@ export function SceneEditor({
                 { k: "value", ph: "value" },
                 { k: "color", ph: "#hex" },
               ])}
-              {input("accent", "e.g. #818cf8")}
             </>
           )}
           {verb === "kinetic-title" && (
@@ -183,7 +220,6 @@ export function SceneEditor({
                     className="min-h-[36px] rounded-ctl border border-border-subtle bg-surface-1 px-2.5 text-[14px] outline-none focus:border-accent"
                   />
                 </label>
-                {input("accent", "e.g. #818cf8")}
               </div>
             </>
           )}
@@ -194,9 +230,46 @@ export function SceneEditor({
                 { k: "label", ph: "stage", wide: true },
                 { k: "color", ph: "#hex" },
               ])}
-              {input("accent", "e.g. #818cf8")}
             </>
           )}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[12px] font-medium text-text-low">hook (cold-open line)</span>
+              <input
+                value={hook}
+                onChange={(e) => {
+                  setHook(e.target.value);
+                  setSaved(false);
+                }}
+                placeholder="e.g. Record-breaking launch"
+                className="min-h-[36px] rounded-ctl border border-border-subtle bg-surface-1 px-2.5 text-[14px] outline-none focus:border-accent"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[12px] font-medium text-text-low">microhook (pull to next)</span>
+              <input
+                value={microhook}
+                onChange={(e) => {
+                  setMicrohook(e.target.value);
+                  setSaved(false);
+                }}
+                placeholder="e.g. The impact continues…"
+                className="min-h-[36px] rounded-ctl border border-border-subtle bg-surface-1 px-2.5 text-[14px] outline-none focus:border-accent"
+              />
+            </label>
+            <label className="flex flex-col gap-1 sm:col-span-2">
+              <span className="text-[12px] font-medium text-text-low">tone</span>
+              <input
+                value={tone}
+                onChange={(e) => {
+                  setTone(e.target.value);
+                  setSaved(false);
+                }}
+                placeholder="e.g. bold, punchy"
+                className="min-h-[36px] rounded-ctl border border-border-subtle bg-surface-1 px-2.5 text-[14px] outline-none focus:border-accent"
+              />
+            </label>
+          </div>
           {error && <p className="text-[13px] text-danger">{error}</p>}
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={save} disabled={saving}>

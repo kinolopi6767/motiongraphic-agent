@@ -106,3 +106,31 @@ export function validateSceneValues(verb: Verb, values: SceneValues): string[] {
   }
   return errors;
 }
+
+/** Deterministic "why look" annotation — retention role + verb rationale. */
+export function sceneAnnotation(
+  scene: StoryboardScene,
+  index: number,
+  totalScenes: number,
+  totalSeconds: number,
+): { role: string; verb: string; pacing: string } {
+  const start = scene.duration * index;
+  const pct = (start / Math.max(totalSeconds, 1)) * 100;
+  let role: string;
+  if (index === 0) role = "Cold-open — earns the watch in the first seconds.";
+  else if (index === totalScenes - 1) role = "Closer — stamps the takeaway.";
+  else if (pct >= 60 && pct <= 70) role = "Value bomb — the payoff moment lands here.";
+  else if (scene.hook) role = "Bridge — carries momentum forward.";
+  else role = "Bridge — keeps the story moving.";
+  if (scene.microhook) role += " Ends with a forward-pull microhook.";
+
+  const verbRationale: Record<Verb, string> = {
+    "count-up": "One number, anchored to the brief — the stat shot.",
+    "chart-race": "Ranks the story's quantities — comparative proof.",
+    "kinetic-title": "Typography as motion — the headline moment.",
+    "pipeline-flow": "Systems view — how the parts connect.",
+  };
+
+  const pacing = scene.duration > 8 ? "Slow beat — let the data breathe." : "Quick beat — keeps the cut crisp.";
+  return { role, verb: verbRationale[scene.verb], pacing };
+}

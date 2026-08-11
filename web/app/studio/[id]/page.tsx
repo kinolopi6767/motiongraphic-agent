@@ -4,8 +4,10 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { RenderButton } from "@/components/render-button";
 import { SceneEditor } from "@/components/scene-editor";
+import { WhyLook } from "@/components/why-look";
 import {
   Storyboard,
+  sceneAnnotation,
   sceneBadge,
   sceneSummary,
 } from "@/lib/storyboard";
@@ -119,8 +121,21 @@ export default async function StoryboardPage({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 self-start lg:flex-col lg:items-start lg:self-center">
-                  <SceneEditor storyboardId={id} index={i} verb={s.verb} initial={s.values} />
+                <div className="flex flex-col items-start gap-3 self-start lg:flex-col lg:items-start lg:self-center">
+                  <SceneEditor
+                    storyboardId={id}
+                    index={i}
+                    verb={s.verb}
+                    initial={s.values}
+                    duration={s.duration}
+                    hook={s.hook}
+                    microhook={s.microhook}
+                    tone={s.tone}
+                  />
+                  <WhyLook lines={(() => {
+                    const a = sceneAnnotation(s, i, sb.scenes.length, sb.total);
+                    return [a.role, a.verb, a.pacing];
+                  })()} />
                 </div>
               </article>
             ))}

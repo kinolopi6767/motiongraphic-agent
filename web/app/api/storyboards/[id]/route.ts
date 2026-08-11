@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
   Storyboard,
@@ -13,9 +13,11 @@ const STORE = join(process.cwd(), "data", "storyboards");
 
 type Params = { params: Promise<{ id: string }> };
 
+const ID_RE = /^sb-[a-z0-9-]+$/;
+
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
-  if (!/^sb-[a-z0-9-]+$/.test(id)) {
+  if (!ID_RE.test(id)) {
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
   }
   try {
@@ -26,13 +28,35 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
 }
 
-/** Scene edits: duration and/or values, validated against the verb contract. */
-export async function PATCH(req: NextRequest, { params }: Params) {
+export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params;
-  if (!/^sb-[a-z0-9-]+$/.test(id)) {
+  if (!ID_RE.test(id)) {
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
   }
-  let body: { index?: number; scene?: { duration?: number; values?: Record<string, unknown> } };
+  try {
+    await unlink(join(STORE, `${id}.json`));
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+}
+
+/** Scene edits: duration, values, hook/microhook/tone — validated per contract. */
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const { id } = await params;
+  if (!ID_RE.test(id)) {
+    return NextResponse.json({ error: "invalid id" }, { status: 400 });
+  }
+  let body: {
+    index?: number;
+    scene?: {
+      duration?: number;
+      values?: Record<string, unknown>;
+      hook?: string | null;
+      microhook?: string | null;
+      tone?: string | null;
+    };
+  };
   try {
     body = await req.json();
   } catch {
@@ -54,17 +78,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!scene) return NextResponse.json({ error: "scene index out of range" }, { status: 400 });
 
   const errors: string[] = [];
-  const { duration, values } = body.scene ?? {};
-  if (duration !== undefined) {
-    if (typeof duration !== "number" || duration < TIMING.MIN_SCENE_S || duration > TIMING.MAX_SCENE_S)
+  const patch = body.scene ?? {};
+  if (patch.duration !== undefined) {
+    if (typeof patch.duration !== "number" || patch.duration < TIMING.MIN_SCENE_S || patch.duration > TIMING.MAX_SCENE_S)
       errors.push(`duration must be ${TIMING.MIN_SCENE_S}-${TIMING.MAX_SCENE_S}s`);
-    else scene.duration = duration;
+    else scene.duration = patch.duration;
   }
-  if (values !== undefined) {
-    errors.push(...validateSceneValues(scene.verb, values));
-    if (!errors.length) scene.values = values;
+  if (patch.values !== undefined) {
+    errors.push(...validateSceneValues(scene.verb, patch.values));
+    if (!errors.length) scene.values = patch.values;
   }
   if (errors.length) return NextResponse.json({ error: errors.join("; ") }, { status: 400 });
+
+  const str = (v: string | null | undefined): string | undefined =>
+    v === null || v === undefined || v === "" ? undefined : v;
+  if (patch.hook !== undefined) scene.hook = str(patch.hook);
+  if (patch.microhook !== undefined) scene.microhook = str(patch.microhook);
+  if (patch.tone !== undefined) scene.tone = str(patch.tone);
 
   record.storyboard.total = record.storyboard.scenes.reduce((a, s) => a + s.duration, 0);
   await writeFile(path, JSON.stringify(record, null, 2));
