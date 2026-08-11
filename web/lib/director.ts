@@ -105,6 +105,17 @@ export async function runDirector(
   // STAGE 1 — break the script down into narrative beats BEFORE planning scenes.
   const { beats, usage: breakdownUsage } = await runBeatBreakdown(brief);
 
+  // VO timing: each scene's duration comes from its beat's spoken length
+  // (~150 wpm), so the video matches how the script reads aloud.
+  const beatDurations = beats.map((b) => {
+    const words = b.line.split(/\s+/).filter(Boolean).length;
+    return Math.max(4, Math.min(12, Math.round((words / 150) * 60)));
+  });
+  const voicedTotal = beatDurations.reduce((a, n) => a + n, 0);
+  const durationHints = beats
+    .map((b, i) => `${i + 1}. ~${beatDurations[i]}s (${b.line.split(/\s+/).filter(Boolean).length} words @150wpm)`)
+    .join("\n");
+
   let lastErr: Error | null = null;
   let usage = { model: "unknown", prompt: 0, completion: 0, total: 0 };
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -120,7 +131,7 @@ export async function runDirector(
             (b, i) =>
               `${i + 1}. [${b.kind}] ${b.line}${b.facts.length ? ` (facts: ${b.facts.join("; ")})` : ""}`,
           )
-          .join("\n")}\n\n${VALUES_CONTRACT}${retryNote}`,
+          .join("\n")}\n\nVOICE-OVER TIMING — give each scene the duration of its beat's spoken length:\n${durationHints}\nThe whole video should total about ${voicedTotal}s (the script read at ~150 wpm). Scenes may breathe up to +1s for holds, but never cut a beat short.\n\n${VALUES_CONTRACT}${retryNote}`,
       );
       usage = { ...u, prompt: u.prompt + breakdownUsage.prompt, completion: u.completion + breakdownUsage.completion, total: u.total + breakdownUsage.total };
       const errors = validateStoryboard(sb);
@@ -149,15 +160,17 @@ export type ScriptBeat = {
 };
 
 const BEAT_SYSTEM = `You are the SCRIPT ANALYST of an agentic motion-graphics engine.
-Break the script down into its narrative beats. Rules:
-- 3 to 7 beats. Each beat is ONE thought — one sentence of meaning.
+The input is a narration script — break it down the way a voice-over would be
+segmented: each beat is ONE spoken segment (a thought the narrator delivers in
+one breath, 5-14 words). Rules:
+- 3 to 7 beats. Never merge two distinct facts into one beat.
 - Every beat has a kind: hook (the first attention-grab), context (setting),
-  claim (a statement), proof (a fact/statistic that backs a claim), payoff (the
+  a claim (a statement), proof (a fact/statistic that backs a claim), payoff (the
   single best insight — near the end, not last), closer (final stamp).
 - Extract EVERY concrete fact (numbers, names, percentages, years) into the
   beat's facts array — verbatim from the script, never invented.
 - emphasis: the single word/phrase the beat hinges on (if any).
-- Write beats as if for a narrator — short, speakable lines.
+- Beats read naturally as spoken lines — short, speakable, no labels.
 Return ONLY valid JSON: {"beats":[{"line","kind","emphasis?","facts":[]}]}.`;
 
 /** Stage 1 — script → narrative beats (the scene plan is built ON this). */

@@ -293,7 +293,11 @@ function BriefForm() {
       <p className="text-[13px] font-medium uppercase tracking-[0.16em] text-accent-strong">
         Step 1 · Brief
       </p>
-      <h1 className="mt-2 text-4xl font-semibold tracking-tight">What should the video say?</h1>
+      <h1 className="mt-2 text-4xl font-semibold tracking-tight">Paste your script</h1>
+      <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-text-med">
+        Write it for the ear, like a voice-over script. The engine segments it into beats, plans a
+        scene per segment, and times each scene to its spoken length.
+      </p>
       <form
         className="mt-8 flex flex-col gap-4"
         onSubmit={(e) => {
@@ -307,7 +311,7 @@ function BriefForm() {
             value={brief}
             onChange={(e) => setBrief(e.target.value)}
             rows={6}
-            placeholder='e.g. "A 12s explainer of how HyperFrames renders HTML motion graphics to MP4 — headless Chrome, GSAP timeline, FFmpeg. Curious, crisp."'
+            placeholder='Paste a narration script — e.g. "Every Sunday, Maria saves forty percent on her groceries with Loop. Since 2021, Loop has grown from two hundred daily orders to over three point two million…" — we segment it like a voice-over and time each scene to its spoken length.'
             aria-label="Brief or script"
             className="resize-y rounded-card border border-border-subtle bg-surface-1 p-4 text-[15px] leading-relaxed outline-none placeholder:text-text-low focus:border-accent"
           />
