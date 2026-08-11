@@ -28,6 +28,19 @@ export interface Storyboard {
 
 export const TIMING = { MIN_SCENE_S: 4, MAX_SCENE_S: 12, MIN_TOTAL_S: 8, MAX_TOTAL_S: 90 };
 
+/** Visual style presets — baked into every scene's values (bg/textColor). */
+export const STYLES = {
+  "studio-black": { label: "Studio Black", bg: "#0B0E13", text: "#F2F4F8", accent: "#6366F1", hint: "crisp, high-contrast, indigo accent" },
+  neon: { label: "Neon Nights", bg: "#05010F", text: "#E0F2FE", accent: "#22D3EE", hint: "electric cyan + magenta glow on near-black" },
+  paper: { label: "Minimal Paper", bg: "#F6F7F9", text: "#1F2430", accent: "#4F46E5", hint: "light paper canvas, dark ink, one accent" },
+  luxury: { label: "Luxury Gold", bg: "#0D0B08", text: "#F5E6C4", accent: "#C9A227", hint: "black + gold, premium quiet drama" },
+  energetic: { label: "Energetic", bg: "#16040F", text: "#FFEDD5", accent: "#FB923C", hint: "vivid orange → violet, high voltage" },
+  nature: { label: "Deep Forest", bg: "#07110C", text: "#A7F3D0", accent: "#34D399", hint: "deep green with fresh emerald light" },
+} as const;
+
+export type StyleId = keyof typeof STYLES;
+export const STYLE_IDS = Object.keys(STYLES) as StyleId[];
+
 /** First scene whose start lands in the 60-70% value-bomb band (or -1). */
 export function valueBombIndex(scenes: StoryboardScene[], total: number): number {
   let t = 0;

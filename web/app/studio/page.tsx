@@ -7,6 +7,112 @@ import { Button } from "@/components/button";
 
 type Kit = { id: string; name: string; colors: string[]; vibe: string };
 
+const STYLES = [
+  { id: "studio-black", label: "Studio Black", swatches: ["#0B0E13", "#6366F1", "#818CF8", "#F2F4F8"], desc: "Dark canvas, crisp, indigo accent — the default." },
+  { id: "neon", label: "Neon Nights", swatches: ["#05010F", "#22D3EE", "#E879F9"], desc: "Electric cyan + magenta on near-black." },
+  { id: "paper", label: "Minimal Paper", swatches: ["#F6F7F9", "#1F2430", "#4F46E5"], desc: "Light paper canvas, dark ink, one accent." },
+  { id: "luxury", label: "Luxury Gold", swatches: ["#0D0B08", "#C9A227", "#F5E6C4"], desc: "Black + gold — premium, quiet drama." },
+  { id: "energetic", label: "Energetic", swatches: ["#16040F", "#FB923C", "#7C3AED"], desc: "Vivid orange → violet, high voltage." },
+  { id: "nature", label: "Deep Forest", swatches: ["#07110C", "#34D399", "#A7F3D0"], desc: "Deep green with fresh emerald light." },
+] as const;
+
+function StylePicker({
+  selected,
+  onChange,
+}: {
+  selected: string;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2 sm:col-span-2">
+      <legend className="text-[14px] font-medium text-text-med">Visual style</legend>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {STYLES.map((s) => (
+          <label
+            key={s.id}
+            className={`cursor-pointer rounded-ctl border p-2.5 transition-colors ${
+              selected === s.id
+                ? "border-accent bg-accent-soft"
+                : "border-border-subtle bg-surface-1 hover:border-border-subtle"
+            }`}
+          >
+            <input
+              type="radio"
+              name="style"
+              value={s.id}
+              checked={selected === s.id}
+              onChange={() => onChange(s.id)}
+              className="sr-only"
+            />
+            <span className="flex items-center gap-2">
+              <span className="flex -space-x-1">
+                {s.swatches.map((c) => (
+                  <span
+                    key={c}
+                    className="size-4 rounded-full border border-surface-1"
+                    style={{ background: c }}
+                  />
+                ))}
+              </span>
+              <span className="text-[13px] font-medium">{s.label}</span>
+            </span>
+            <span className="mt-1 block text-[11px] leading-snug text-text-low">{s.desc}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+/** Quick model picker for project creation — auto-saves (shared with Settings). */
+function ModelQuickPick() {
+  const [provider, setProvider] = useState<string | null>(null);
+  const [model, setModel] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((d) => {
+        setProvider(d.llm?.provider ?? "zen");
+        setModel(d.llm?.model ?? "deepseek-v4-flash-free");
+      })
+      .catch(() => {});
+  }, []);
+  if (provider === null || model === null) return null;
+  const switchTo = async (m: string) => {
+    setModel(m);
+    try {
+      await fetch("/api/config", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "zen", model: m }),
+      });
+    } catch {}
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+      <span className="text-[14px] font-medium text-text-med">AI model</span>
+      <span className="rounded-full bg-accent-soft px-2.5 py-1 text-[12px] font-semibold text-accent-strong">
+        {model}
+      </span>
+      {["deepseek-v4-flash-free", "mimo-v2.5-free"].map((m) => (
+        <button
+          key={m}
+          type="button"
+          aria-pressed={model === m}
+          onClick={() => switchTo(m)}
+          className={`rounded-full border px-2.5 py-1 text-[12px] transition-colors ${
+            model === m
+              ? "border-accent bg-accent-soft font-semibold text-accent-strong"
+              : "border-border-subtle text-text-med hover:border-accent"
+          }`}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function KitPicker({
   selected,
   onChange,
@@ -70,6 +176,7 @@ function BriefForm() {
   const [tone, setTone] = useState("");
   const [ratio, setRatio] = useState("16:9");
   const [brandKitId, setBrandKitId] = useState<string | null>(search.get("kit"));
+  const [style, setStyle] = useState("studio-black");
   const [kits, setKits] = useState<Kit[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +207,7 @@ function BriefForm() {
           duration: duration ? Number(duration) : undefined,
           tone: tone || undefined,
           ratio,
+          style,
           brandKitId: brandKitId ?? undefined,
         }),
       });
@@ -192,6 +300,8 @@ function BriefForm() {
             />
           </label>
           <KitPicker selected={brandKitId} onChange={setBrandKitId} kits={kits} />
+          <StylePicker selected={style} onChange={setStyle} />
+          <ModelQuickPick />
         </div>
 
         {error && (

@@ -26,13 +26,18 @@ export default function SettingsPage() {
   }, []);
 
   const resetData = async () => {
-    if (!window.confirm("Delete ALL local storyboards and jobs? Credits stay. This cannot be undone.")) return;
+    if (
+      !window.confirm(
+        "Clear ALL creation history — storyboards, jobs, brand kits and rendered MP4s? Credits and settings stay. This cannot be undone.",
+      )
+    )
+      return;
     setBusy(true);
     setResetMsg(null);
     try {
       const res = await fetch("/api/data?confirm=1", { method: "DELETE" });
       if (!res.ok) throw new Error(String(res.status));
-      setResetMsg("Local data cleared. Rendered MP4s on disk are untouched.");
+      setResetMsg("All creation history cleared. Credits and settings kept.");
     } catch {
       setResetMsg("Reset failed — check server logs.");
     } finally {
@@ -129,12 +134,12 @@ export default function SettingsPage() {
           <h2 className="text-[15px] font-semibold">Local data</h2>
           <div className="mt-3 rounded-card border border-border-subtle bg-surface-1 p-5">
             <p className="text-[14px] text-text-med">
-              Everything lives in <code className="rounded bg-surface-2 px-1.5 py-0.5 text-[13px]">web/data/</code>:
-              storyboards, jobs, ledger. No account, no database.
+              Everything lives in <code className="rounded bg-surface-2 px-1.5 py-0.5 text-[13px]">web/data/</code> plus rendered
+              MP4s in <code className="rounded bg-surface-2 px-1.5 py-0.5 text-[13px]">output/web-jobs/</code>. No account, no database.
             </p>
             <div className="mt-4">
               <Button variant="danger" onClick={resetData} disabled={busy}>
-                {busy ? "Clearing…" : "Clear storyboards & jobs"}
+                {busy ? "Clearing…" : "Clear all history"}
               </Button>
               {resetMsg && <p className="mt-2 text-[13px] text-text-med">{resetMsg}</p>}
             </div>

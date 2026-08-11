@@ -85,7 +85,7 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   llm: {
     provider: "zen",
-    model: "mimo-v2.5-free",
+    model: "deepseek-v4-flash-free",
     baseUrl: LLM_PROVIDERS.zen.baseUrl,
     apiKey: "",
   },

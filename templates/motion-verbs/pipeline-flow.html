@@ -1,10 +1,12 @@
 <!doctype html>
 <html lang="en" data-composition-variables='[
   {"id":"title","type":"string","label":"Title","default":"Pipeline"},
-  {"id":"nodes","type":"json","label":"[{label,color}]","default":[{"label":"Input","color":"#4f8cff"},{"label":"Process","color":"#22c55e"},{"label":"Output","color":"#f59e0b"}]},
+  {"id":"nodes","type":"json","label":"Nodes [{label,color?}]","default":[{"label":"Brief"},{"label":"Render"}]},
   {"id":"accent","type":"color","label":"Accent color","default":"#4f8cff"},
+  {"id":"bg","type":"color","label":"Background","default":"#0B0E13"},
+  {"id":"textColor","type":"color","label":"Text color","default":"#F2F4F8"},
   {"id":"startMs","type":"number","label":"Scene start (ms)","default":0},
-  {"id":"holdMs","type":"number","label":"Hold (ms)","default":5000}
+  {"id":"sceneMs","type":"number","label":"Scene duration (ms)","default":8000}
 ]'>
   <head>
     <meta charset="UTF-8" />
@@ -12,44 +14,48 @@
     <script src="assets/vendor/gsap.min.js"></script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0e1116; }
-      body { font-family: "Inter", sans-serif; color: #f2f4f8; }
-      #camera {
-        position: absolute; inset: 0; transform-origin: 50% 50%;
-        background: radial-gradient(1000px 700px at 50% 20%, #1a2434 0%, #0e1116 70%);
-      }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0B0E13; }
+      body { font-family: "Inter", sans-serif; }
+      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; }
       #root { position: absolute; inset: 0; }
-      .clip { position: absolute; inset: 0; }
+      .orb { position: absolute; border-radius: 50%; filter: blur(130px); will-change: transform; }
+      #orb1 { width: 900px; height: 900px; left: -240px; top: -300px; }
+      #orb2 { width: 720px; height: 720px; right: -200px; top: 80px; }
+      #orb3 { width: 640px; height: 640px; left: 26%; bottom: -260px; }
       #title {
-        position: absolute;
-        top: 170px; left: 200px; font-size: 56px; font-weight: 700; letter-spacing: -0.01em;
+        position: absolute; top: 150px; left: 200px; right: 200px;
+        font-size: 64px; font-weight: 700; letter-spacing: -0.02em;
       }
       #pipeline {
-        position: absolute;
-        top: 400px; left: 200px; right: 200px;
-        display: flex; align-items: center;
+        position: absolute; top: 420px; left: 200px; right: 200px;
+        display: flex; align-items: center; gap: 0;
       }
       .node {
-        flex: 1; text-align: center; padding: 40px 20px;
-        font-size: 40px; font-weight: 700; letter-spacing: 0.01em;
-        border-radius: 18px; color: #0e1116;
-        will-change: transform, opacity;
+        flex: 1; min-width: 0; text-align: center; font-size: 40px; font-weight: 600;
+        padding: 46px 20px; border-radius: 22px; position: relative; will-change: transform;
       }
-      .connector {
-        width: 90px; height: 6px; border-radius: 3px;
-        background: #3a4657; transform-origin: 0 50%;
+      .node small { display: block; margin-top: 10px; font-size: 22px; font-weight: 500; opacity: 0.6; letter-spacing: 0.12em; }
+      .node .ring {
+        position: absolute; inset: -8px; border-radius: 28px; border: 3px solid transparent;
+        opacity: 0; pointer-events: none;
       }
+      .connector { position: relative; width: 130px; height: 8px; border-radius: 999px; overflow: visible; flex: none; }
       .dot {
         position: absolute; width: 26px; height: 26px; border-radius: 50%;
-        background: var(--accent); transform: translate(-50%, -50%);
-        will-change: transform, opacity;
+        transform: translate(-50%, -50%); left: 0; top: 50%; will-change: transform, opacity;
       }
-      .connector { position: relative; }
+      .pulse { position: absolute; left: 0; top: 50%; width: 44px; height: 44px; border-radius: 50%; transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+      #halo { position: absolute; top: 300px; left: 50%; width: 720px; height: 720px; transform: translateX(-50%); filter: blur(90px); opacity: 0; pointer-events: none; }
     </style>
   </head>
   <body>
     <div id="root" data-composition-id="verb-pipeline-flow" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30">
-      <div id="camera"></div>
+      <div id="camera">
+        <div class="orb" id="orb1"></div>
+        <div class="orb" id="orb2"></div>
+        <div class="orb" id="orb3"></div>
+        <div id="halo"></div>
+      </div>
       <div class="clip" data-start="0" data-duration="7.6" data-track-index="1">
         <div id="title"></div>
         <div id="pipeline"></div>
@@ -57,53 +63,124 @@
     </div>
     <script>
       const v = window.__hyperframes.getVariables();
-      const t = v.startMs / 1000;
-      document.documentElement.style.setProperty("--accent", v.accent);
-      document.getElementById("title").textContent = v.title;
+      const D = (v.sceneMs || 8000) / 1000;
+      const t0 = v.startMs / 1000;
+      const ACCENT = v.accent || "#4f8cff";
+      const TEXT = v.textColor || "#F2F4F8";
+      const BG = v.bg || "#0B0E13";
+
+      const rgba = (hex, a) => {
+        const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+        if (!m) return `rgba(80,140,255,${a})`;
+        const n = parseInt(m[1], 16);
+        return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+      };
+
+      document.documentElement.style.background = BG;
+      document.documentElement.style.setProperty("--accent", ACCENT);
+      document.getElementById("title").textContent = v.title || "";
+      document.getElementById("title").style.color = TEXT;
+      document.getElementById("halo").style.background = rgba(ACCENT, 0.6);
+      for (const [sel, a] of [["#orb1", 0.3], ["#orb2", 0.24], ["#orb3", 0.2]]) {
+        document.querySelector(sel).style.background = rgba(ACCENT, a);
+      }
+
       const pipe = document.getElementById("pipeline");
-      const nodes = Array.isArray(v.nodes) ? v.nodes : [];
+      const nodes = (Array.isArray(v.nodes) && v.nodes.length ? v.nodes : [{ label: "Brief" }, { label: "Render" }]);
       const dots = [];
       nodes.forEach((nd, i) => {
         if (i > 0) {
           const conn = document.createElement("div");
           conn.className = "connector";
-          pipe.appendChild(conn);
+          conn.style.background = rgba(ACCENT, 0.25);
           const dot = document.createElement("div");
           dot.className = "dot";
-          dot.style.left = "50%";
-          dot.style.top = "50%";
+          dot.style.background = ACCENT;
+          const pulse = document.createElement("div");
+          pulse.className = "pulse";
+          pulse.style.background = rgba(ACCENT, 0.5);
           conn.appendChild(dot);
-          dots.push({ dot, conn });
+          conn.appendChild(pulse);
+          pipe.appendChild(conn);
+          dots.push({ dot, conn, pulse });
         }
         const node = document.createElement("div");
         node.className = "node";
-        node.style.background = nd.color || v.accent;
-        node.textContent = nd.label;
+        node.style.background = nd.color || rgba(ACCENT, 0.22);
+        node.style.color = TEXT;
+        const ring = document.createElement("div");
+        ring.className = "ring";
+        ring.style.borderColor = ACCENT;
+        node.appendChild(ring);
+        const big = document.createElement("span");
+        big.textContent = nd.label;
+        node.appendChild(big);
+        const small = document.createElement("small");
+        small.textContent = `STAGE ${String(i + 1).padStart(2, "0")}`;
+        node.appendChild(small);
         node.style.opacity = 0;
         pipe.appendChild(node);
-        nodes[i].el = node;
+        nd._el = node;
+        nd._ring = ring;
       });
 
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
 
-      tl.from("#title", { autoAlpha: 0, y: 24, duration: 0.6, ease: "power3.out" }, t + 0.1);
+      // ---------- 1 · ENTRANCE (0 → 40%) ----------
+      tl.from("#title", { autoAlpha: 0, y: 30, duration: 0.6, ease: "power3.out" }, t0 + 0.05);
       nodes.forEach((nd, i) => {
-        tl.to(nd.el, { autoAlpha: 1, scale: 0.96, duration: 0.5, ease: "back.out(1.4)" }, t + 0.4 + i * 0.55);
+        tl.to(nd._el, { autoAlpha: 1, scale: 0.94, duration: 0.55, ease: "back.out(1.6)" }, t0 + 0.35 + i * 0.5);
         if (i > 0) {
-          // connector draws as the node lands; dot pulses across it (flow signal)
-          tl.fromTo(dots[i - 1].conn, { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power2.out" }, t + 0.45 + i * 0.55);
-          tl.fromTo(dots[i - 1].dot, { x: -40, autoAlpha: 0 }, { x: 40, autoAlpha: 1, duration: 0.5, ease: "power2.inOut" }, t + 0.5 + i * 0.55);
-          tl.to(dots[i - 1].dot, { autoAlpha: 0, duration: 0.15 }, t + 1.0 + i * 0.55);
+          const d = dots[i - 1];
+          tl.fromTo(d.conn, { scaleX: 0 }, { scaleX: 1, transformOrigin: "0 50%", duration: 0.45, ease: "power2.out" }, t0 + 0.4 + i * 0.5);
+          // flow dot crossing the connector
+          tl.fromTo(d.dot, { x: 0, autoAlpha: 1 }, { x: 130, duration: 0.5, ease: "power2.inOut" }, t0 + 0.45 + i * 0.5);
+          tl.to(d.dot, { autoAlpha: 0, duration: 0.15 }, t0 + 0.95 + i * 0.5);
+          tl.fromTo(d.pulse, { scale: 0.4, autoAlpha: 0.9 }, { scale: 2.2, autoAlpha: 0, duration: 0.6, ease: "power2.out" }, t0 + 0.45 + i * 0.5);
         }
       });
-      // highlight pulse on the final node (stamp moment, R: one hero beat)
-      const last = nodes[nodes.length - 1].el;
-      tl.fromTo(last, { scale: 0.96 }, { scale: 1.05, duration: 0.4, ease: "back.out(1.7)" }, t + 0.4 + (nodes.length - 1) * 0.55 + 0.9);
-      tl.to(last, { scale: 1, duration: 0.4, ease: "power2.out" }, t + 0.4 + (nodes.length - 1) * 0.55 + 1.5);
 
-      // camera drift (R1)
-      tl.to("#camera", { scale: 1.05, duration: 7.6, ease: "sine.inOut" }, t);
+      // ---------- 2 · AMBIENT FLOW (40% → 70%) — data forever moving through the pipe ----------
+      const amb = t0 + D * 0.4;
+      const flow = { pos: 0 };
+      const conns = dots.map((d) => d.conn);
+      tl.to(flow, {
+        pos: 130, duration: 1.6, ease: "linear", repeat: -1, repeatDelay: 0.35,
+        onUpdate: () => {
+          const f = Math.floor(flow.pos / 130 * dots.length);
+          dots.forEach((d, i) => {
+            if (i === f) {
+              gsap.set(d.dot, { x: flow.pos % 130 });
+            }
+          });
+        },
+      }, amb);
+      // simpler robust ambient: each dot loops across its connector
+      dots.forEach((d, i) => {
+        tl.fromTo(d.dot, { x: 0, autoAlpha: 1 }, { x: 130, autoAlpha: 1, duration: 1.5, ease: "linear", repeat: -1, delay: i * 0.5 }, amb);
+        tl.to(d.dot, { autoAlpha: 0, duration: 0.2 }, amb + 1.5 + i * 0.5);
+      });
+      nodes.forEach((nd, i) => {
+        tl.to(nd._el, { y: i % 2 ? 12 : -12, duration: 2.4 + i * 0.3, ease: "sine.inOut", repeat: -1, yoyo: true }, amb);
+      });
+      tl.to("#title", { opacity: 0.6, duration: 2.0, repeat: -1, yoyo: true, ease: "sine.inOut" }, amb);
+      tl.to("#orb1", { x: 220, y: 180, scale: 1.25, duration: 6.0, ease: "sine.inOut", repeat: -1, yoyo: true }, t0);
+      tl.to("#orb2", { x: -200, y: -140, scale: 1.2, duration: 6.8, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 0.6);
+      tl.to("#orb3", { x: 160, y: -200, scale: 1.28, duration: 7.4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 1.1);
+
+      // ---------- 3 · EMPHASIS (70% → 84%) — the output stamps ----------
+      const beat = t0 + D * 0.7;
+      const last = nodes[nodes.length - 1];
+      tl.to(last._el, { scale: 1.06, duration: 0.4, ease: "back.out(1.8)" }, beat);
+      tl.to(last._el, { scale: 1, duration: 0.7, ease: "power4.inOut" }, beat + 0.4);
+      tl.fromTo(last._ring, { opacity: 0.9 }, { opacity: 0, duration: 1.0, ease: "power2.out" }, beat);
+      tl.fromTo("#halo", { opacity: 0.8 }, { opacity: 0, duration: 0.9, ease: "power2.out" }, beat);
+
+      // ---------- 4 · EXIT (92% → 100%) ----------
+      const ex = t0 + D * 0.92;
+      tl.to(nodes.map((n) => n._el), { x: -80, autoAlpha: 0, duration: 0.55, stagger: 0.07, ease: "power2.in" }, ex);
+      tl.to("#title", { autoAlpha: 0, y: -20, duration: 0.45, ease: "power2.in" }, ex + 0.1);
 
       window.__timelines["verb-pipeline-flow"] = tl;
     </script>

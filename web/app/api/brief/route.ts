@@ -5,6 +5,7 @@ import { runDirector } from "@/lib/director";
 import { Storyboard } from "@/lib/storyboard";
 import { readKit } from "@/lib/brand-kits";
 import { readConfig } from "@/lib/config";
+import { STYLES, STYLE_IDS } from "@/lib/storyboard";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -16,6 +17,7 @@ type BriefBody = {
   duration?: number;
   tone?: string;
   ratio?: string;
+  style?: string;
   brandKitId?: string;
 };
 
@@ -40,6 +42,8 @@ export async function POST(req: NextRequest) {
   if (!RATIOS.includes(ratio)) {
     return NextResponse.json({ error: `ratio must be one of ${RATIOS.join(", ")}` }, { status: 400 });
   }
+  const style = STYLE_IDS.includes(body.style as never) ? (body.style as (typeof STYLE_IDS)[number]) : "studio-black";
+  const styleDef = STYLES[style];
 
   try {
     const kit = body.brandKitId ? await readKit(body.brandKitId) : null;
@@ -49,8 +53,15 @@ export async function POST(req: NextRequest) {
     const { storyboard, usage } = await runDirector(brief, {
       ...body,
       ratio,
+      style,
       brandKit: kit ? { name: kit.name, colors: kit.colors, vibe: kit.vibe } : undefined,
     });
+    // Style is baked deterministically into every scene's values (templates read
+    // values.bg / values.textColor) — no LLM dependency for the look.
+    for (const scene of storyboard.scenes) {
+      scene.values.bg = styleDef.bg;
+      scene.values.textColor = styleDef.text;
+    }
     const id = `sb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
     // Voice-tier gate (PLAN §7): classified per video — AI-OK / Hybrid / Human-only.
@@ -77,6 +88,7 @@ export async function POST(req: NextRequest) {
           id,
           brief,
           ratio,
+          style,
           brandKitId: kit?.id,
           brandKitName: kit?.name,
           palette: kit?.colors,

@@ -5,8 +5,10 @@
   {"id":"accent","type":"color","label":"Accent color","default":"#4f8cff"},
   {"id":"accentOn","type":"number","label":"Accent line index (0-based)","default":1},
   {"id":"kicker","type":"string","label":"Kicker","default":""},
+  {"id":"bg","type":"color","label":"Background","default":"#0B0E13"},
+  {"id":"textColor","type":"color","label":"Text color","default":"#F2F4F8"},
   {"id":"startMs","type":"number","label":"Scene start (ms)","default":0},
-  {"id":"holdMs","type":"number","label":"Hold (ms)","default":5000}
+  {"id":"sceneMs","type":"number","label":"Scene duration (ms)","default":8000}
 ]'>
   <head>
     <meta charset="UTF-8" />
@@ -14,63 +16,129 @@
     <script src="assets/vendor/gsap.min.js"></script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0e1116; }
-      body { font-family: "Inter", sans-serif; color: #f2f4f8; }
-      #camera {
-        position: absolute; inset: 0; transform-origin: 50% 50%;
-        background: radial-gradient(1000px 700px at 30% 20%, #1a2434 0%, #0e1116 70%);
-      }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0B0E13; }
+      body { font-family: "Inter", sans-serif; }
+      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; }
       #root { position: absolute; inset: 0; }
-      .clip { position: absolute; inset: 0; }
+      .orb { position: absolute; border-radius: 50%; filter: blur(130px); will-change: transform; }
+      #orb1 { width: 900px; height: 900px; left: -220px; top: -260px; }
+      #orb2 { width: 760px; height: 760px; right: -180px; top: 120px; }
+      #orb3 { width: 640px; height: 640px; left: 32%; bottom: -260px; }
       #kicker {
-        position: absolute;
-        top: 210px; left: 200px; font-size: 26px; letter-spacing: 0.3em;
-        text-transform: uppercase; color: #6fb3ff;
+        position: absolute; top: 208px; left: 200px; font-size: 26px;
+        letter-spacing: 0.34em; text-transform: uppercase; opacity: 0;
+      }
+      #glowbar {
+        position: absolute; top: 0; height: 6px; width: 0px; left: 196px;
+        border-radius: 999px; opacity: 0;
       }
       h1 {
-        position: absolute;
-        top: 300px; left: 190px; right: 190px;
-        font-size: 104px; font-weight: 700; letter-spacing: -0.02em;
-        line-height: 1.08;
+        position: absolute; top: 300px; left: 190px; right: 190px;
+        font-size: 104px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.08;
       }
       h1 .line { display: block; overflow: hidden; }
-      h1 .line > span { display: inline-block; will-change: transform; }
+      h1 .line > span { display: inline-block; will-change: transform, filter; }
+      #accentglow {
+        position: absolute; left: 188px; right: 188px; height: 96px; top: 0;
+        filter: blur(48px); opacity: 0; pointer-events: none;
+      }
     </style>
   </head>
   <body>
     <div id="root" data-composition-id="verb-kinetic-title" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30">
-      <div id="camera"></div>
+      <div id="camera">
+        <div class="orb" id="orb1"></div>
+        <div class="orb" id="orb2"></div>
+        <div class="orb" id="orb3"></div>
+      </div>
       <div class="clip" data-start="0" data-duration="7.6" data-track-index="1">
         <div id="kicker"></div>
+        <div id="glowbar"></div>
         <h1 id="title"></h1>
+        <div id="accentglow"></div>
       </div>
     </div>
     <script>
       const v = window.__hyperframes.getVariables();
-      const t = v.startMs / 1000;
-      document.getElementById("kicker").textContent = v.kicker;
+      const D = (v.sceneMs || 8000) / 1000;
+      const t0 = v.startMs / 1000;
+      const ACCENT = v.accent || "#4f8cff";
+      const TEXT = v.textColor || "#F2F4F8";
+      const BG = v.bg || "#0B0E13";
+
+      const rgba = (hex, a) => {
+        const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+        if (!m) return `rgba(80,140,255,${a})`;
+        const n = parseInt(m[1], 16);
+        return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+      };
+
+      document.documentElement.style.background = BG;
+      document.getElementById("kicker").textContent = v.kicker || "";
+      document.getElementById("kicker").style.color = ACCENT;
+      for (const [i, el] of [["#orb1", 0.35], ["#orb2", 0.28], ["#orb3", 0.22]].entries()) {
+        const orb = document.querySelector(el[0]);
+        orb.style.background = rgba(ACCENT, el[1]);
+      }
+
       const title = document.getElementById("title");
-      const lines = Array.isArray(v.lines) && v.lines.length ? v.lines : [v.title];
+      const lines = Array.isArray(v.lines) && v.lines.length ? v.lines : [v.title || "Headline"];
+      const spans = [];
       lines.forEach((ln, i) => {
         const line = document.createElement("span");
         line.className = "line";
         const inner = document.createElement("span");
-        inner.innerHTML = i === v.accentOn ? `<span style="color:${v.accent}">${ln}</span>` : ln;
+        inner.innerHTML = i === v.accentOn ? `<span style="color:${ACCENT}">${ln}</span>` : ln;
+        inner.style.color = TEXT;
         line.appendChild(inner);
         title.appendChild(line);
+        spans.push(inner);
       });
+      // accent glow sits behind the accent line
+      const gl = document.getElementById("accentglow");
+      gl.style.background = rgba(ACCENT, 0.55);
 
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
 
-      tl.from("#kicker", { autoAlpha: 0, y: 20, duration: 0.7, ease: "power3.out" }, t + 0.1);
-      // mask-line reveal: lines slide yPercent 110 → 0 through overflow masks
-      tl.from(".line > span", {
-        yPercent: 110, duration: 1.0, stagger: 0.12, ease: "expo.out",
-      }, t + 0.2);
+      // ---------- 1 · ENTRANCE (0 → 18%) ----------
+      tl.to("#kicker", { autoAlpha: 1, letterSpacing: "0.34em", duration: 0.7, ease: "power2.out" }, t0 + 0.05);
+      tl.fromTo("#kicker", { letterSpacing: "0.1em" }, { letterSpacing: "0.34em", duration: 0.8, ease: "power2.out" }, t0 + 0.05);
+      tl.from(spans, {
+        yPercent: 115, duration: 0.95, stagger: 0.14, ease: "expo.out",
+        filter: "blur(10px)", clearProps: "filter",
+      }, t0 + 0.18);
+      tl.fromTo("#glowbar", { width: 0 }, { width: 260, duration: 0.8, ease: "expo.out" }, t0 + 0.3);
 
-      // camera drift (R1)
-      tl.to("#camera", { scale: 1.05, duration: 7.6, ease: "sine.inOut" }, t);
+      // ---------- 2 · AMBIENT (18% → 70%) — nothing ever holds still ----------
+      spans.forEach((s, i) => {
+        tl.to(s, { y: i % 2 ? 10 : -10, duration: 2.6 + i * 0.4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 1.2);
+      });
+      tl.to("#kicker", { opacity: 0.55, duration: 1.6, repeat: -1, yoyo: true, ease: "sine.inOut" }, t0 + 1.2);
+      tl.to("#glowbar", { opacity: 0.45, duration: 2.0, repeat: -1, yoyo: true, ease: "sine.inOut" }, t0 + 1.3);
+      // drifting orbs — slow, layered
+      tl.to("#orb1", { x: 220, y: 180, scale: 1.25, duration: 5.5, ease: "sine.inOut", repeat: -1, yoyo: true }, t0);
+      tl.to("#orb2", { x: -180, y: -140, scale: 1.2, duration: 6.5, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 0.6);
+      tl.to("#orb3", { x: 160, y: -200, scale: 1.3, duration: 7.2, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 1.1);
+      // breathing accent glow
+      tl.to("#accentglow", { opacity: 0.5, duration: 1.8, repeat: -1, yoyo: true, ease: "sine.inOut" }, t0 + 1.4);
+
+      // ---------- 3 · EMPHASIS BEAT (70% → 82%) ----------
+      const beat = t0 + D * 0.7;
+      tl.to(title, { scale: 1.03, duration: 0.5, ease: "power2.out" }, beat);
+      tl.to(title, { scale: 1, duration: 0.9, ease: "power4.inOut" }, beat + 0.5);
+      tl.fromTo("#accentglow", { opacity: 0.9 }, { opacity: 0, duration: 0.9, ease: "power2.out" }, beat + 0.05);
+      tl.to(spans, { y: 0, duration: 0.5, ease: "power2.out" }, beat);
+
+      // ---------- 4 · EXIT (86% → 100%) ----------
+      const ex = t0 + D * 0.86;
+      tl.to(spans, { yPercent: -115, duration: 0.7, stagger: 0.09, ease: "power2.in", filter: "blur(6px)" }, ex);
+      tl.to("#kicker", { autoAlpha: 0, y: -18, duration: 0.5, ease: "power2.in" }, ex + 0.1);
+      tl.to("#glowbar", { autoAlpha: 0, duration: 0.4 }, ex + 0.1);
+
+      // camera: continuous drift + settle (R1 camera language)
+      tl.fromTo("#camera", { scale: 1.0 }, { scale: 1.05, duration: D, ease: "sine.inOut" }, t0);
+      tl.to("#camera", { rotation: 0.35, duration: D / 2, ease: "sine.inOut", repeat: 1, yoyo: true }, t0);
 
       window.__timelines["verb-kinetic-title"] = tl;
     </script>

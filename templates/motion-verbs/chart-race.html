@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="en" data-composition-variables='[
-  {"id":"title","type":"string","label":"Title","default":"Comparison"},
-  {"id":"items","type":"json","label":"[{label,value,color}]","default":[{"label":"A","value":42,"color":"#4f8cff"},{"label":"B","value":67,"color":"#22c55e"}]},
-  {"id":"unit","type":"string","label":"Unit","default":""},
-  {"id":"decimal","type":"number","label":"Decimal places","default":0},
+  {"id":"title","type":"string","label":"Title","default":"Top results"},
+  {"id":"items","type":"json","label":"Items [{label,value,color?}]","default":[{"label":"A","value":40},{"label":"B","value":30}]},
   {"id":"accent","type":"color","label":"Accent color","default":"#4f8cff"},
+  {"id":"bg","type":"color","label":"Background","default":"#0B0E13"},
+  {"id":"textColor","type":"color","label":"Text color","default":"#F2F4F8"},
   {"id":"startMs","type":"number","label":"Scene start (ms)","default":0},
-  {"id":"holdMs","type":"number","label":"Hold (ms)","default":5000}
+  {"id":"sceneMs","type":"number","label":"Scene duration (ms)","default":8000}
 ]'>
   <head>
     <meta charset="UTF-8" />
@@ -14,44 +14,43 @@
     <script src="assets/vendor/gsap.min.js"></script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0e1116; }
-      body { font-family: "Inter", sans-serif; color: #f2f4f8; }
-      #camera {
-        position: absolute; inset: 0; transform-origin: 50% 50%;
-        background: radial-gradient(1000px 700px at 50% 10%, #1a2434 0%, #0e1116 70%);
-      }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0B0E13; }
+      body { font-family: "Inter", sans-serif; }
+      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; }
       #root { position: absolute; inset: 0; }
-      .clip { position: absolute; inset: 0; }
+      .orb { position: absolute; border-radius: 50%; filter: blur(130px); will-change: transform; }
+      #orb1 { width: 900px; height: 900px; left: -240px; top: -300px; }
+      #orb2 { width: 720px; height: 720px; right: -200px; top: 80px; }
+      #orb3 { width: 640px; height: 640px; left: 26%; bottom: -260px; }
       #title {
-        position: absolute;
-        top: 130px; left: 200px; font-size: 56px; font-weight: 700;
-        letter-spacing: -0.01em;
+        position: absolute; top: 150px; left: 200px; right: 200px;
+        font-size: 64px; font-weight: 700; letter-spacing: -0.02em;
       }
       #chart {
-        position: absolute;
-        top: 280px; left: 200px; right: 200px; height: 520px;
+        position: absolute; top: 300px; left: 200px; right: 200px; height: 520px;
         display: flex; align-items: flex-end; gap: 90px;
       }
-      .bar-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
-      .bar {
-        width: 100%; transform-origin: 50% 100%;
-        border-radius: 14px 14px 0 0;
+      .bar-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; position: relative; will-change: transform; }
+      .bar { width: 100%; transform-origin: 50% 100%; border-radius: 14px 14px 0 0; position: relative; overflow: hidden; }
+      .shimmer {
+        position: absolute; top: 0; bottom: 0; left: 0; width: 55%;
+        background: linear-gradient(100deg, transparent, rgba(255,255,255,0.45), transparent);
+        transform: translateX(-150%);
       }
-      .bar.val { position: relative; }
-      .bar-val {
-        position: absolute; top: -100px; right: 0; width: 100%;
-        text-align: center; font-size: 84px; font-weight: 800;
-        font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
-      }
-      .bar-label {
-        margin-top: 28px; text-align: center; font-size: 34px;
-        color: #9aa7b8; letter-spacing: 0.04em;
-      }
+      .bar-val { position: absolute; top: -100px; right: 0; width: 100%; text-align: center; font-size: 84px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+      .bar-label { margin-top: 28px; text-align: center; font-size: 34px; letter-spacing: 0.04em; opacity: 0.75; }
+      .medal { position: absolute; top: -150px; right: 0; left: 0; margin: 0 auto; width: 96px; height: 96px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 48px; opacity: 0; }
+      #halo { position: absolute; top: 220px; left: 50%; width: 700px; height: 700px; transform: translateX(-50%); filter: blur(90px); opacity: 0; pointer-events: none; }
     </style>
   </head>
   <body>
     <div id="root" data-composition-id="verb-chart-race" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30">
-      <div id="camera"></div>
+      <div id="camera">
+        <div class="orb" id="orb1"></div>
+        <div class="orb" id="orb2"></div>
+        <div class="orb" id="orb3"></div>
+        <div id="halo"></div>
+      </div>
       <div class="clip" data-start="0" data-duration="7.6" data-track-index="1">
         <div id="title"></div>
         <div id="chart"></div>
@@ -59,54 +58,109 @@
     </div>
     <script>
       const v = window.__hyperframes.getVariables();
-      const t = v.startMs / 1000;
-      document.getElementById("title").textContent = v.title;
+      const D = (v.sceneMs || 8000) / 1000;
+      const t0 = v.startMs / 1000;
+      const ACCENT = v.accent || "#4f8cff";
+      const TEXT = v.textColor || "#F2F4F8";
+      const BG = v.bg || "#0B0E13";
+
+      const rgba = (hex, a) => {
+        const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+        if (!m) return `rgba(80,140,255,${a})`;
+        const n = parseInt(m[1], 16);
+        return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+      };
+
+      document.documentElement.style.background = BG;
+      document.getElementById("title").textContent = v.title || "";
+      document.getElementById("title").style.color = TEXT;
+      document.getElementById("halo").style.background = rgba(ACCENT, 0.6);
+      for (const [sel, a] of [["#orb1", 0.3], ["#orb2", 0.24], ["#orb3", 0.2]]) {
+        document.querySelector(sel).style.background = rgba(ACCENT, a);
+      }
+
       const chart = document.getElementById("chart");
-      const items = Array.isArray(v.items) ? v.items : [];
-      const max = Math.max(...items.map(i => i.value), 1);
+      const items = (Array.isArray(v.items) && v.items.length ? v.items : [{ label: "A", value: 40 }, { label: "B", value: 30 }]);
+      const max = Math.max(...items.map((i) => Number(i.value) || 0), 1);
       const bars = [];
-      items.forEach((it) => {
+      items.forEach((it, idx) => {
         const col = document.createElement("div");
         col.className = "bar-col";
         const bar = document.createElement("div");
-        bar.className = "bar val";
-        bar.style.background = it.color || v.accent;
-        bar.style.height = `${((it.value / max) * 0.8 * 520).toFixed(0)}px`;
-        col.appendChild(bar);
+        bar.className = "bar";
+        bar.style.background = it.color || (idx === 0 ? ACCENT : rgba(ACCENT, 0.45 + idx * 0.12));
+        const sh = document.createElement("div");
+        sh.className = "shimmer";
+        bar.appendChild(sh);
         const val = document.createElement("div");
         val.className = "bar-val";
-        const num = document.createElement("span");
-        num.className = "num";
-        num.textContent = "0";
-        val.appendChild(document.createTextNode(""));
-        val.appendChild(num);
+        val.style.color = TEXT;
+        val.textContent = "0";
         bar.appendChild(val);
         const label = document.createElement("div");
         label.className = "bar-label";
         label.textContent = it.label;
+        label.style.color = TEXT;
+        col.appendChild(bar);
         col.appendChild(label);
         chart.appendChild(col);
-        bars.push({ bar, num, value: it.value, label });
+        bars.push({ col, bar, val, value: Number(it.value) || 0, label });
       });
 
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
+      const tick = (el, to, dur, at, ease = "power2.out") => {
+        const o = { n: 0 };
+        tl.to(o, { n: to, duration: dur, ease, onUpdate: () => { el.textContent = Math.round(o.n).toLocaleString("en-US"); } }, at);
+      };
 
-      tl.from("#title", { autoAlpha: 0, y: 24, duration: 0.6, ease: "power3.out" }, t + 0.1);
+      // ---------- 1 · ENTRANCE (0 → 42%) ----------
+      tl.from("#title", { autoAlpha: 0, y: 30, duration: 0.6, ease: "power3.out" }, t0 + 0.05);
       bars.forEach((b, i) => {
-        // bars grow sequentially (R4: staggered, total < 500ms apart, staggered by editorial order)
-        tl.fromTo(b.bar, { scaleY: 0 }, { scaleY: 1, duration: 0.7, ease: "expo.out" }, t + 0.35 + i * 0.45);
-        tl.to(b.num, { innerText: b.value, snap: { innerText: 1 }, duration: 0.7, ease: "power2.out" }, t + 0.35 + i * 0.45);
-        tl.from(b.label, { autoAlpha: 0, y: 14, duration: 0.4, ease: "power2.out" }, t + 0.5 + i * 0.45);
+        const h = `${((b.value / max) * 0.8 * 520).toFixed(0)}px`;
+        b.bar.style.height = h;
+        tl.fromTo(b.bar, { scaleY: 0 }, { scaleY: 1, duration: 0.65, ease: "back.out(1.5)" }, t0 + 0.3 + i * 0.4);
+        tick(b.val, b.value, 0.65, t0 + 0.3 + i * 0.4, "power2.inOut");
+        tl.from(b.label, { autoAlpha: 0, y: 16, duration: 0.4, ease: "power2.out" }, t0 + 0.45 + i * 0.4);
       });
-      // callout pop on the final bar (back.out)
-      if (bars.length) {
-        const last = bars[bars.length - 1].bar;
-        tl.fromTo(last, { scale: 0.97 }, { scale: 1, duration: 0.45, ease: "back.out(1.7)" }, t + 0.35 + (bars.length - 1) * 0.45 + 0.75);
+
+      // ---------- 2 · RACE ROUND (45% → 70%) — re-rank & re-grow ----------
+      const r2 = t0 + D * 0.45;
+      const ranked = [...bars].sort((a, b) => b.value - a.value);
+      ranked.forEach((b, i) => {
+        // columns slide into rank order
+        tl.to(b.col, { y: (ranked.indexOf(b) - bars.indexOf(b)) * -44, duration: 0.5, ease: "power2.inOut" }, r2 + i * 0.12);
+        // the bar re-grows with a punch and its number races again
+        tl.fromTo(b.bar, { scaleY: 0.92 }, { scaleY: 1, duration: 0.4, ease: "power2.out" }, r2 + 0.5 + i * 0.12);
+        tick(b.val, b.value, 0.4, r2 + 0.5 + i * 0.12, "power1.out");
+      });
+      tl.fromTo("#camera", { scale: 1.0 }, { scale: 1.05, duration: 1.0, ease: "power2.out" }, r2);
+      tl.to("#camera", { scale: 1.02, duration: 0.8, ease: "power2.inOut" }, r2 + 1.0);
+
+      // ---------- 3 · AMBIENT (70% → 84%) — always moving ----------
+      const amb = t0 + D * 0.7;
+      bars.forEach((b, i) => {
+        tl.to(b.col, { y: `+=${i % 2 ? 8 : -8}`, duration: 2.2 + i * 0.3, ease: "sine.inOut", repeat: -1, yoyo: true }, amb);
+        tl.to(b.bar.querySelector(".shimmer"), { x: "360%", duration: 2.4 + i * 0.35, ease: "power1.inOut", repeat: -1, delay: i * 0.4 }, amb);
+      });
+      tl.to("#title", { opacity: 0.6, duration: 2.0, repeat: -1, yoyo: true, ease: "sine.inOut" }, amb);
+      tl.to("#orb1", { x: 220, y: 180, scale: 1.25, duration: 6.0, ease: "sine.inOut", repeat: -1, yoyo: true }, t0);
+      tl.to("#orb2", { x: -200, y: -140, scale: 1.2, duration: 6.8, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 0.6);
+      tl.to("#orb3", { x: 160, y: -200, scale: 1.28, duration: 7.4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 1.1);
+
+      // ---------- 4 · EMPHASIS (84% → 90%) — winner moment ----------
+      const beat = t0 + D * 0.84;
+      const winner = ranked[0];
+      if (winner) {
+        tl.to(winner.col, { scale: 1.06, duration: 0.35, ease: "power2.out" }, beat);
+        tl.to(winner.col, { scale: 1, duration: 0.7, ease: "power4.inOut" }, beat + 0.35);
+        tl.fromTo("#halo", { opacity: 0.8 }, { opacity: 0, duration: 0.9, ease: "power2.out" }, beat);
       }
 
-      // camera drift (R1)
-      tl.to("#camera", { scale: 1.06, duration: 7.6, ease: "sine.inOut" }, t);
+      // ---------- 5 · EXIT (92% → 100%) ----------
+      const ex = t0 + D * 0.92;
+      tl.to(bars.map((b) => b.bar), { scaleY: 0, transformOrigin: "50% 100%", duration: 0.5, stagger: 0.05, ease: "power2.in" }, ex);
+      tl.to("#title", { autoAlpha: 0, y: -20, duration: 0.45, ease: "power2.in" }, ex + 0.1);
 
       window.__timelines["verb-chart-race"] = tl;
     </script>
