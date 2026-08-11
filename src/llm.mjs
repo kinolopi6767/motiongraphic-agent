@@ -10,7 +10,8 @@ import { join } from "node:path";
 
 const ZEN_URL = process.env.ZEN_URL || "https://opencode.ai/zen/v1";
 // Free line (same opencode-go key as the vision skill). Paid models need credits.
-const MODEL = process.env.ZEN_MODEL || "mimo-v2.5-free";
+// The web worker passes the app's configured model via LLM_MODEL (Settings → AI model).
+const MODEL = process.env.LLM_MODEL || process.env.ZEN_MODEL || "mimo-v2.5-free";
 
 async function authKey() {
   for (const p of [

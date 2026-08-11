@@ -52,6 +52,9 @@ LLM auth is automatic: `ZEN_URL` (default `https://opencode.ai/zen/v1`),
   `[id]/captions/` · `[id]/words/` · `[id]/thumbnail/` — status, MP4, log,
   contact-sheet frames, WebVTT captions, word timestamps, value-bomb thumbnail
 - `app/api/config/` — voice config (Deepgram; GET sanitized / PUT / POST test)
+- `app/api/config/llm-test/` — probe the configured AI model (free lines:
+  `mimo-v2.5-free`, `deepseek-v4-flash-free`, via the OpenCode Zen gateway with
+  the local opencode-go key; paid `deepseek-v4-flash` needs account credits)
 - `app/api/ledger/route.ts` — credits balance + transactions (local JSON)
 - `app/api/data/route.ts` — reset local storyboards/jobs (credits kept)
 - `lib/director.ts` — director agent prompt + validation retry + hook engineer
@@ -67,8 +70,10 @@ LLM auth is automatic: `ZEN_URL` (default `https://opencode.ai/zen/v1`),
   RMS report), optional Deepgram narration (`src/voice.mjs`), mux (aac),
   value-bomb thumbnail, motion guard, report.json. Prepends `<repo>/.tools`
   (static ffmpeg/ffprobe) to PATH.
-- `lib/config.ts` — Deepgram voice config store (`data/config.json`, disabled
-  by default; key never leaves the server)
+- `lib/config.ts` — app config store (`data/config.json`): Deepgram voice
+  (disabled by default; key never leaves the server) + LLM model picker
+  (`deepseek-v4-flash-free` / `mimo-v2.5-free`), propagated to the pipeline via
+  `LLM_MODEL`
 - `lib/brand-kits.ts` — brand kit store + WCAG contrast math (relative
   luminance, 4.5:1 white-text / 3:1 canvas checks) used by the wizard
 - `components/` — shell (⌘K palette, theme toggle, credits pill), button,

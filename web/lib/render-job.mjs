@@ -254,6 +254,7 @@ try {
   const voice = config.voice;
   const voiceEnabled = Boolean(voice?.enabled) && Boolean(voice?.apiKey);
   const env = { ...process.env };
+  if (config.llm?.model) env.LLM_MODEL = config.llm.model;
   if (voiceEnabled) {
     env.DEEPGRAM_API_KEY = voice.apiKey;
     if (voice.ttsModel) env.DEEPGRAM_TTS_MODEL = voice.ttsModel;

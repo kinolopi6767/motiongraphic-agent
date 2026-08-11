@@ -12,8 +12,13 @@ export type VoiceConfig = {
   dictionary: string[];
 };
 
+export type LlmConfig = {
+  model: string;
+};
+
 export type AppConfig = {
   voice: VoiceConfig;
+  llm: LlmConfig;
 };
 
 export const AURA_VOICES = [
@@ -38,6 +43,9 @@ const DEFAULT_CONFIG: AppConfig = {
     tier: "auto",
     dictionary: [],
   },
+  llm: {
+    model: "mimo-v2.5-free",
+  },
 };
 
 export async function readConfig(): Promise<AppConfig> {
@@ -45,6 +53,7 @@ export async function readConfig(): Promise<AppConfig> {
     const raw = JSON.parse(await readFile(join(process.cwd(), "data", "config.json"), "utf8"));
     return {
       voice: { ...DEFAULT_CONFIG.voice, ...(raw.voice ?? {}) },
+      llm: { ...DEFAULT_CONFIG.llm, ...(raw.llm ?? {}) },
     };
   } catch {
     return structuredClone(DEFAULT_CONFIG);
@@ -68,6 +77,9 @@ export function sanitizeConfig(cfg: AppConfig) {
       voice: cfg.voice.voice,
       tier: cfg.voice.tier,
       dictionary: cfg.voice.dictionary,
+    },
+    llm: {
+      model: cfg.llm.model,
     },
   };
 }

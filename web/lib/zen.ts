@@ -5,9 +5,10 @@ import { join } from "node:path";
 /**
  * Server-only Zen LLM client (same free line as the pipeline's src/llm.mjs).
  * Key resolution: env VISION_API_KEY / OPENCODE_API_KEY, else opencode auth.json.
+ * Model: config.json llm.model (Settings → AI model), env ZEN_MODEL/LLM_MODEL override.
  */
 const ZEN_URL = process.env.ZEN_URL || "https://opencode.ai/zen/v1";
-const MODEL = process.env.ZEN_MODEL || "mimo-v2.5-free";
+const DEFAULT_MODEL = process.env.ZEN_MODEL || process.env.LLM_MODEL || "mimo-v2.5-free";
 
 async function authKey(): Promise<string> {
   for (const p of [
@@ -27,13 +28,22 @@ async function authKey(): Promise<string> {
   throw new Error("no opencode/zen auth key found");
 }
 
+async function model(): Promise<string> {
+  try {
+    const { readConfig } = await import("@/lib/config");
+    return (await readConfig()).llm.model || DEFAULT_MODEL;
+  } catch {
+    return DEFAULT_MODEL;
+  }
+}
+
 export async function chatJson<T>(system: string, prompt: string, temperature = 0.4): Promise<T> {
   const key = await authKey();
   const res = await fetch(`${ZEN_URL}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model: MODEL,
+      model: await model(),
       temperature,
       messages: [
         { role: "system", content: system + "\n\nReply with ONLY valid JSON. No markdown fences." },

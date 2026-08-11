@@ -16,6 +16,7 @@ export async function PUT(req: NextRequest) {
     voice?: unknown;
     tier?: unknown;
     dictionary?: unknown;
+    model?: unknown;
   };
   try {
     body = await req.json();
@@ -23,6 +24,9 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   }
   const cfg = await readConfig();
+  if (body.model !== undefined && typeof body.model === "string" && body.model.trim().length > 2) {
+    cfg.llm.model = body.model.trim();
+  }
   if (body.enabled !== undefined) cfg.voice.enabled = Boolean(body.enabled);
   if (body.apiKey !== undefined) {
     const key = String(body.apiKey).trim();
