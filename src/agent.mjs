@@ -31,6 +31,11 @@ const seed = flags.find((f) => f.startsWith("--seed="))?.split("=")[1];
 const sceneOnly = flags.find((f) => f.startsWith("--scene="))?.split("=")[1]
   ? Number(flags.find((f) => f.startsWith("--scene=")).split("=")[1])
   : undefined;
+// --segments=k1,k2: explicit segment indices to render (segment k is scene k/2
+// when even, transition (k-1)/2 when odd).
+const segmentList = flags.find((f) => f.startsWith("--segments="))?.split("=")[1]
+  ? flags.find((f) => f.startsWith("--segments=")).split("=")[1].split(",").map(Number)
+  : undefined;
 const ratioFlag = flags.find((f) => f.startsWith("--ratio="))?.split("=")[1];
 const crfFlag = flags.find((f) => f.startsWith("--crf="))?.split("=")[1];
 const maxMotion = flags.includes("--max-motion");
@@ -59,7 +64,9 @@ Verb contracts:
 - count-up: {value, label, suffix?, prefix?, accent?}
 - chart-race: {title, items:[{label,value,color?}], accent?}
 - kinetic-title: {lines, accent?, accentOn?, kicker?}
-- pipeline-flow: {title, nodes:[{label,color?}], accent?}`,
+- pipeline-flow: {title, nodes:[{label,color?}], accent?}
+- timeline: {title, events:[{label,value?,color?}], accent?}
+- radial-gauge: {value:number, label:string, unit?, accent?}`,
       json: true,
     });
     const errors = validateStoryboard(storyboard);
@@ -117,21 +124,25 @@ if (snapAt) {
   execFileSync("npx", ["hyperframes", "snapshot", projectDir, "--at", snapAt], { stdio: "inherit" });
 }
 
-// 6) RENDER — chaptered segments (Phase 5 zero-gap re-edit).
-// Each scene renders as its own MP4 segment; the web worker concats/splices.
+// 6) RENDER — chaptered segments (Phase 5 zero-gap re-edit + transitions).
+// Segment k = scene k/2 (even) or transition (k-1)/2 (odd). Worker concats.
 if (doRender) {
   const segDir = join(projectDir, "segments");
   await mkdir(segDir, { recursive: true });
-  const indices = sceneOnly !== undefined ? [sceneOnly] : storyboard.scenes.map((_, i) => i);
-  for (const i of indices) {
-    if (!Number.isInteger(i) || i < 0 || i >= storyboard.scenes.length) {
-      throw new Error(`invalid scene index: ${i}`);
+  const sceneCount = storyboard.scenes.length;
+  const all = [];
+  for (let k = 0; k < sceneCount * 2 - 1; k++) all.push(k);
+  const indices = segmentList !== undefined ? segmentList : sceneOnly !== undefined ? [sceneOnly * 2] : all;
+  for (const k of indices) {
+    if (!Number.isInteger(k) || k < 0 || k >= sceneCount * 2 - 1) {
+      throw new Error(`invalid segment index: ${k}`);
     }
-    const segOut = join(segDir, `seg-${i}.mp4`);
-    const renderArgs = ["hyperframes", "render", projectDir, "-c", `compositions/scene-${i}.html`, "-o", segOut, "--quiet"];
+    const comp = k % 2 === 0 ? `compositions/scene-${k / 2}.html` : `compositions/trans-${(k - 1) / 2}.html`;
+    const segOut = join(segDir, `seg-${k}.mp4`);
+    const renderArgs = ["hyperframes", "render", projectDir, "-c", comp, "-o", segOut, "--quiet"];
     if (crfFlag) renderArgs.push(`--crf=${crfFlag}`);
     execFileSync("npx", renderArgs, { stdio: "inherit" });
-    console.error(`[agent] segment ${i}: ${segOut}`);
+    console.error(`[agent] segment ${k}: ${segOut}`);
   }
 }
 console.error(`[agent] done -> ${projectDir}`);

@@ -89,13 +89,18 @@ const MOTION_PASS_THRESHOLD = 2.0; // mean gray diff per pixel (0-255)
 /**
  * No-stasis check (PLAN §5, render tier): diff consecutive contact-sheet
  * frames within each scene; a scene with near-zero drift failed the check.
+ * timeline = [{type:"scene",index,verb,duration}|{type:"trans",duration}].
  */
-function measureMotion(frames, scenes) {
+function measureMotion(frames, timeline) {
   const windows = [];
   let t = 0;
-  for (const s of scenes) {
-    windows.push({ from: t, to: t + s.duration, duration: s.duration });
-    t += s.duration;
+  for (const item of timeline) {
+    if (item.type !== "scene") {
+      t += item.duration;
+      continue;
+    }
+    windows.push({ from: t, to: t + item.duration, duration: item.duration, scene: item.index });
+    t += item.duration;
   }
   const byScene = windows.map(() => []);
   for (const p of frames) {
@@ -113,7 +118,7 @@ function measureMotion(frames, scenes) {
     }
     const score = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
     return {
-      scene: i,
+      scene: w.scene,
       duration: w.duration,
       frames: ps.length,
       score: Number(score.toFixed(2)),
@@ -281,17 +286,34 @@ try {
     if (ratios.length === 0) ratios = [record.ratio && RATIOS.includes(record.ratio) ? record.ratio : "16:9"];
   }
 
-  // 3 frames per scene (open, midpoint, close) for contact sheets + motion guard
+  // --- full timeline: scenes + cinematic transitions (1.4s each) ---
+  // segment k: even -> scene k/2, odd -> transition (k-1)/2
+  const TRANS_S = 1.4;
+  const timeline = [];
+  for (let i = 0; i < storyboard.scenes.length; i++) {
+    if (i > 0) timeline.push({ type: "trans", duration: TRANS_S, boundary: i - 1 });
+    timeline.push({ type: "scene", index: i, verb: storyboard.scenes[i].verb, duration: storyboard.scenes[i].duration });
+  }
+  const segmentCount = storyboard.scenes.length * 2 - 1;
+
+  // snapshot times: 3 per scene + 1 per transition midpoint
   let t = 0;
   const ats = [];
-  for (const s of storyboard.scenes) {
-    const open = Math.min(t + 0.8, t + s.duration - 0.2);
-    const mid = t + s.duration / 2;
-    const close = Math.max(t + s.duration - 0.8, mid + 0.1);
-    for (const at of [open, mid, close]) {
-      if (at >= t && at < t + s.duration && at < total - 0.1) ats.push(Number(at.toFixed(2)));
+  const segTimes = [];
+  for (const item of timeline) {
+    if (item.type === "scene") {
+      const open = Math.min(t + 0.8, t + item.duration - 0.2);
+      const mid = t + item.duration / 2;
+      const close = Math.max(t + item.duration - 0.8, mid + 0.1);
+      for (const at of [open, mid, close]) {
+        if (at >= t && at < t + item.duration && at < total + (storyboard.scenes.length - 1) * TRANS_S - 0.1) {
+          ats.push(Number(at.toFixed(2)));
+        }
+      }
+    } else {
+      ats.push(Number((t + item.duration / 2).toFixed(2)));
     }
-    t += s.duration;
+    t += item.duration;
   }
   const snapArg = `--snapshot=${ats.join(",")}`;
 
@@ -313,7 +335,12 @@ try {
       "--max-motion",
       "--render",
     ];
-    if (sceneIndex !== undefined) args.push(`--scene=${sceneIndex}`);
+    if (sceneIndex !== undefined) {
+      // re-render the scene AND its two adjacent transitions
+      const k = sceneIndex * 2;
+      const segs = [k - 1, k, k + 1].filter((x) => x >= 0 && x < segmentCount);
+      args.push(`--segments=${segs.join(",")}`);
+    }
     if (seed) args.push(`--seed=${seed}`);
 
     const { code, log, projectDir } = await runAgent(args, env);
@@ -327,16 +354,18 @@ try {
       const prevRuns = prev?.ratioRuns || {};
       const prevRun = prevRuns[ratio];
       if (!prevRun) throw new Error(`previous job missing ratio run ${ratio}`);
-      for (let i = 0; i < storyboard.scenes.length; i++) {
-        if (i === sceneIndex) continue;
+      const k = sceneIndex * 2;
+      const reRendered = new Set([k - 1, k, k + 1].filter((x) => x >= 0 && x < segmentCount));
+      for (let i = 0; i < segmentCount; i++) {
+        if (reRendered.has(i)) continue;
         const src = join(prevRun, "segments", `seg-${i}.mp4`);
         await cp(src, join(segDir, `seg-${i}.mp4`));
       }
     }
 
-    // sanity + concat -> silent full video
+    // sanity + concat -> silent full video (segments = scenes + transitions)
     const segments = [];
-    for (let i = 0; i < storyboard.scenes.length; i++) {
+    for (let i = 0; i < segmentCount; i++) {
       const p = join(segDir, `seg-${i}.mp4`);
       await stat(p);
       segments.push(p);
@@ -345,6 +374,20 @@ try {
     const listFile = join(segDir, "concat.txt");
     await writeFile(listFile, segments.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"));
     execFileSync(FF, ["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", "-movflags", "+faststart", fullMp4], { stdio: "ignore" });
+
+    // --- finishing stack (PLAN §2 ⑥): seeded grain + vignette + grade ---
+    // Re-encode video with the same CRF so the film look survives audio mux.
+    const finishedMp4 = join(runRoot, `video-${slug}-fin.mp4`);
+    execFileSync(
+      FF,
+      [
+        "-y", "-i", fullMp4,
+        "-vf", "noise=alls=5:allf=t+u,vignette=PI/5:angle=PI/4,eq=saturation=1.06:contrast=1.03",
+        "-c:v", "libx264", "-crf", "17", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart", finishedMp4,
+      ],
+      { stdio: "ignore" }
+    );
 
     segmentsByRatio[ratio] = segments;
     runsByRatio[ratio] = projectDir;
@@ -355,7 +398,11 @@ try {
   // --- audio stage (SFX bed + optional Deepgram narration) — ratio-independent ---
   const primaryRun = runsByRatio[primaryRatio];
   const audioOut = join(primaryRun, "mixed.wav");
-  const audioCmd = ["src/audio.mjs", sbFile, audioOut];
+  // SFX bed must cover the FULL video length (scenes + transitions).
+  const audioSbFile = join(JOB_DIR, `${jobId}.audio-storyboard.json`);
+  const videoTotal = total + (storyboard.scenes.length - 1) * TRANS_S;
+  await writeFile(audioSbFile, JSON.stringify({ ...storyboard, total: videoTotal }, null, 2));
+  const audioCmd = ["src/audio.mjs", audioSbFile, audioOut];
   let narrationWav = null;
   let words = [];
   let voiceInfo = null;
@@ -413,16 +460,20 @@ try {
     wlog(`sfx skipped: ${e.message}`);
   }
 
-  // --- finish per ratio: mux audio + value-bomb thumbnail ---
+  // --- finish per ratio: mux audio (onto the finished film-look video) + thumbnail ---
   const bomb = valueBombIndex(storyboard.scenes, total);
+  // bomb scene's start time on the full timeline (transitions shift it)
   let bombT = 2;
-  let tt = 0;
-  for (let i = 0; i < storyboard.scenes.length; i++) {
-    if (i === bomb) {
-      bombT = tt + 1;
-      break;
+  {
+    let tt = 0;
+    for (let i = 0; i < storyboard.scenes.length; i++) {
+      if (i === bomb) {
+        bombT = tt + 1;
+        break;
+      }
+      if (i > 0) tt += TRANS_S;
+      tt += storyboard.scenes[i].duration;
     }
-    tt += storyboard.scenes[i].duration;
   }
 
   const videos = {};
@@ -430,11 +481,11 @@ try {
   for (const ratio of ratios) {
     const slug = RATIO_SLUG[ratio];
     const runRoot = join(outDir, `${jobId}-${slug}`);
-    const fullMp4 = join(runRoot, `video-${slug}.mp4`);
+    const finishedMp4 = join(runRoot, `video-${slug}-fin.mp4`);
     const finalMp4 = join(runRoot, `final-${slug}.mp4`);
     execFileSync(
       FF,
-      ["-y", "-i", fullMp4, "-i", audioOut, "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", finalMp4],
+      ["-y", "-i", finishedMp4, "-i", audioOut, "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", finalMp4],
       { stdio: "ignore" }
     );
     const thumbPath = join(runRoot, `thumb-${slug}.jpg`);
@@ -445,7 +496,7 @@ try {
 
   // contact sheets + motion from the primary ratio run
   const frames = await collectFrames(join(outDir, `${jobId}-${RATIO_SLUG[primaryRatio]}`), startedAtMs);
-  const motion = frames.length >= 2 ? measureMotion(frames, storyboard.scenes) : [];
+  const motion = frames.length >= 2 ? measureMotion(frames, timeline) : [];
   const frameTimes = frames.map((p) => {
     const tm = /at-([\d.]+)s\.png$/.exec(p);
     return tm ? Number(tm[1]) : null;

@@ -202,7 +202,7 @@ export default async function StoryboardPage({
                         </span>
                       )}
                     </div>
-                    {prevRender && <SceneVideoChunk jobId={prevRender.jobId} index={i} />}
+                    {prevRender && <SceneVideoChunk jobId={prevRender.jobId} index={i * 2} />}
                   </div>
                   <div className="flex flex-col items-start gap-3 self-start lg:items-start lg:self-center">
                     <SceneEditor

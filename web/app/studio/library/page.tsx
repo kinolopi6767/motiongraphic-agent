@@ -31,6 +31,18 @@ const CATALOG: Record<string, { verb: string; label: string; blurb: string; fiel
     blurb: "Stages flow left-to-right — the systems view of how parts connect.",
     fields: ["title", "nodes[2–6]: label, color", "accent"],
   },
+  timeline: {
+    verb: "timeline",
+    label: "Timeline journey",
+    blurb: "A line draws across milestones — how the story unfolded over time.",
+    fields: ["title", "events[2–6]: label, value, color", "accent"],
+  },
+  "radial-gauge": {
+    verb: "radial-gauge",
+    label: "Radial gauge",
+    blurb: "One metric as a living dial that fills — completion, share, score.",
+    fields: ["value (number)", "label", "unit", "accent"],
+  },
 };
 
 const STARTERS: Record<string, string> = {
@@ -38,6 +50,8 @@ const STARTERS: Record<string, string> = {
   "chart-race": "Make a 20s chart-race comparing 4 sales channels.",
   "kinetic-title": "Make a 15s kinetic-title opener for a launch announcement.",
   "pipeline-flow": "Make a 40s pipeline-flow explainer of how our render pipeline works.",
+  timeline: "Make a 30s timeline of our company's journey over three milestones.",
+  "radial-gauge": "Make a 10s radial gauge showing our 92% customer satisfaction.",
 };
 
 export const dynamic = "force-dynamic";

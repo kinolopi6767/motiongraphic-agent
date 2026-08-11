@@ -27,6 +27,10 @@ export async function runHooks(
 const DIRECTOR_SYSTEM = `You are the DIRECTOR AGENT of an agentic motion-graphics video engine.
 Turn a brief into a storyboard.json. Requirements:
 - Scene verbs limited to: ${VERBS.join(", ")}.
+- VARIETY RULES (non-negotiable): use at least 2 different verbs when there are
+  3+ scenes; never use the same verb more than twice in the whole video; never
+  place the same verb in adjacent scenes. Alternate kinetic-title with data
+  verbs (count-up / chart-race / timeline / radial-gauge / pipeline-flow).
 - Total 8-90s, each scene 4-12s.
 - Retention contract: cold-open/hook energy in scene 1, value bomb at 60-70%,
   a forward-pull microhook at the end of each scene (hook/microhook fields).
@@ -43,10 +47,30 @@ const VALUES_CONTRACT = `Verb -> values contracts:
 - chart-race:     {title:string, items:[{label,value,color?}], accent?}
 - kinetic-title:  {lines:string[], accent?, accentOn?:number, kicker?}
 - pipeline-flow:  {title:string, nodes:[{label,color?}], accent?}
+- timeline:       {title:string, events:[{label,value?,color?}], accent?}
+- radial-gauge:   {value:number, label:string, unit?, accent?}
 
 storyboard.json fields: title, formatArchetype (case-study|data-explainer|systems-explainer|timeline),
 scenes[] each {verb, duration, values, hook?, microhook?, tone?}.
 No filler scenes — only what the brief earns.`;
+
+/**
+ * Variety guard: no verb more than twice in a row of scenes, no more than 2
+ * repeats of one verb, and data-y verbs preferred for factual beats.
+ */
+function varietyErrors(scenes: Storyboard["scenes"]) {
+  const counts: Record<string, number> = {};
+  for (const s of scenes) counts[s.verb] = (counts[s.verb] ?? 0) + 1;
+  const errs: string[] = [];
+  if (scenes.length >= 3 && Object.keys(counts).length < 2) errs.push("use at least 2 different verbs");
+  for (const [verb, n] of Object.entries(counts)) {
+    if (n > 2) errs.push(`verb "${verb}" used ${n} times — max 2; vary the verbs`);
+  }
+  for (let i = 1; i < scenes.length; i++) {
+    if (scenes[i].verb === scenes[i - 1].verb) errs.push(`adjacent scenes ${i} and ${i + 1} repeat "${scenes[i].verb}" — alternate verbs`);
+  }
+  return errs;
+}
 
 /** Runs the director agent with one validation retry. Returns usage too. */
 export async function runDirector(
@@ -67,23 +91,31 @@ export async function runDirector(
     .filter(Boolean)
     .join("\n");
 
-  let lastErr: unknown;
+  let lastErr: Error | null = null;
   let usage = { model: "unknown", prompt: 0, completion: 0, total: 0 };
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
+      const retryNote =
+        lastErr instanceof Error && attempt === 2
+          ? `\n\nYour previous attempt was rejected. Fix ALL of these: ${lastErr.message}`
+          : "";
       const { json: sb, usage: u } = await chatJsonU<Storyboard>(
         DIRECTOR_SYSTEM,
-        `BRIEF:\n${brief}\n\n${extras}\n\n${VALUES_CONTRACT}`,
+        `BRIEF:\n${brief}\n\n${extras}\n\n${VALUES_CONTRACT}${retryNote}`,
       );
       usage = u;
       const errors = validateStoryboard(sb);
-      if (!errors.length) {
+      const vErrs = varietyErrors(sb.scenes);
+      if (!errors.length && vErrs.length === 0) {
         sb.total = sb.scenes.reduce((a, s) => a + s.duration, 0);
         return { storyboard: sb, usage };
       }
-      lastErr = new Error(`storyboard invalid: ${errors.join("; ")}`);
+      lastErr = new Error(
+        `storyboard invalid: ${[...errors, ...vErrs].join("; ")}`,
+      );
+      console.error(`[director] retry ${attempt}: ${lastErr.message}`);
     } catch (e) {
-      lastErr = e;
+      lastErr = e instanceof Error ? e : new Error(String(e));
     }
     if (attempt === 1) await new Promise((r) => setTimeout(r, 400));
   }

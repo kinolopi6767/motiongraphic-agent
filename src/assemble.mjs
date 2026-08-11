@@ -53,6 +53,24 @@ await mkdir(join(out, "motion-verbs"), { recursive: true });
 await mkdir(join(out, "assets", "vendor"), { recursive: true });
 await mkdir(join(out, "compositions"), { recursive: true });
 await cp(join(ASSETS, "vendor", "gsap.min.js"), join(out, "assets", "vendor", "gsap.min.js"));
+await cp(join(VERBS, "transition.html"), join(out, "motion-verbs", "transition.html"));
+
+/** Cinematic transition variant by incoming verb (deterministic rule). */
+function transKind(incomingVerb) {
+  if (incomingVerb === "kinetic-title") return "flash";
+  if (incomingVerb === "count-up") return "zoom";
+  return "wipe";
+}
+
+function transLine(scene) {
+  if (scene.hook) return scene.hook;
+  const v = scene.values || {};
+  if (Array.isArray(v.lines) && v.lines.length) return v.lines[0];
+  if (v.title) return v.title;
+  return v.label || "NEXT";
+}
+
+const TRANS_MS = 1400;
 
 let t = 0;
 const embeds = [];
@@ -70,6 +88,42 @@ for (let i = 0; i < manifest.scenes.length; i++) {
            data-composition-src="motion-verbs/${sc.verb}.html"
            data-start="${t}" data-duration="${sc.duration}"
            data-variable-values='${JSON.stringify(values)}'></div>`);
+
+  // Transition INTO this scene (boundary i-1), rendered as its own segment.
+  if (i > 0) {
+    const inScene = manifest.scenes[i];
+    const tv = {
+      accent: inScene.values.accent || "#4f8cff",
+      bg: inScene.values.bg || "#0B0E13",
+      textColor: inScene.values.textColor || "#F2F4F8",
+      line: transLine(inScene),
+      kind: transKind(inScene.verb),
+      sceneMs: TRANS_MS,
+    };
+    const tseg = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=${CANVAS_W}, height=${CANVAS_H}" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: ${CANVAS_W}px; height: ${CANVAS_H}px; overflow: hidden; background: #000; }
+    </style>
+  </head>
+  <body>
+    <div data-composition-id="${manifest.id}-trans${i - 1}" data-start="0" data-duration="${(TRANS_MS / 1000).toFixed(2)}"
+         data-width="${CANVAS_W}" data-height="${CANVAS_H}" data-fps="${manifest.fps}"
+         data-no-timeline>
+${masterBox}      <div id="trans-${i - 1}" data-composition-id="tr${i - 1}-transition"
+           data-composition-src="motion-verbs/transition.html"
+           data-start="0" data-duration="${(TRANS_MS / 1000).toFixed(2)}"
+           data-variable-values='${JSON.stringify(tv)}'></div>
+${masterBoxClose}    </div>
+  </body>
+</html>
+`;
+    await writeFile(join(out, "compositions", `trans-${i - 1}.html`), tseg);
+  }
 
   // Zero-gap segment compositions (Phase 5 chaptered re-edit): one file per
   // scene, timeline starting at 0 — renders as its own MP4 segment.

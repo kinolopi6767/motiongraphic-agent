@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[
+  {"id":"accent","type":"color","label":"Accent color","default":"#4f8cff"},
+  {"id":"bg","type":"color","label":"Incoming background","default":"#0B0E13"},
+  {"id":"textColor","type":"color","label":"Incoming text","default":"#F2F4F8"},
+  {"id":"line","type":"string","label":"Incoming headline","default":""},
+  {"id":"kind","type":"string","label":"Transition kind","default":"wipe"},
+  {"id":"sceneMs","type":"number","label":"Scene duration (ms)","default":1400}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0B0E13; }
+      body { font-family: "Inter", sans-serif; }
+      #root { position: absolute; inset: 0; }
+      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; perspective: 1000px; }
+      #stage { position: absolute; inset: 0; }
+      #wipe {
+        position: absolute; inset: 0; opacity: 0;
+        background: linear-gradient(105deg, transparent 30%, var(--accent, #4f8cff) 50%, transparent 70%);
+        transform: translateX(-140%) skewX(-12deg);
+      }
+      #wipeglow { position: absolute; inset: 0; opacity: 0; filter: blur(60px); }
+      #flash { position: absolute; inset: 0; opacity: 0; }
+      #titleline {
+        position: absolute; top: 330px; left: 200px; right: 200px;
+        font-size: 120px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05;
+        overflow: hidden; transform: translateZ(80px);
+      }
+      #titleline > span { display: inline-block; will-change: transform, filter; }
+      #subline {
+        position: absolute; top: 520px; left: 204px; font-size: 30px;
+        letter-spacing: 0.3em; text-transform: uppercase; opacity: 0;
+      }
+      #ring {
+        position: absolute; left: 50%; top: 50%; width: 2400px; height: 2400px;
+        margin: -1200px 0 0 -1200px; border-radius: 50%; border: 4px solid var(--accent, #4f8cff);
+        opacity: 0; transform: scale(0.1);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="verb-transition" data-start="0" data-duration="1.4" data-width="1920" data-height="1080" data-fps="30">
+      <div id="camera">
+        <div id="wipeglow"></div>
+        <div id="ring"></div>
+        <div id="wipe"></div>
+        <div id="flash"></div>
+        <div id="titleline"></div>
+        <div id="subline"></div>
+      </div>
+    </div>
+    <script>
+      const v = window.__hyperframes.getVariables();
+      const D = (v.sceneMs || 1400) / 1000;
+      const t0 = v.startMs / 1000;
+      const ACCENT = v.accent || "#4f8cff";
+      const TEXT = v.textColor || "#F2F4F8";
+      const BG = v.bg || "#0B0E13";
+      const KIND = ["wipe", "flash", "zoom"].includes(v.kind) ? v.kind : "wipe";
+
+      const rgba = (hex, a) => {
+        const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+        if (!m) return `rgba(80,140,255,${a})`;
+        const n = parseInt(m[1], 16);
+        return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+      };
+
+      document.documentElement.style.background = BG;
+      document.documentElement.style.setProperty("--accent", ACCENT);
+      document.getElementById("titleline").style.color = TEXT;
+      document.getElementById("wipe").style.background = `linear-gradient(105deg, transparent 28%, ${ACCENT} 50%, transparent 72%)`;
+      document.getElementById("wipeglow").style.background = rgba(ACCENT, 0.5);
+      document.getElementById("flash").style.background = `${rgba(ACCENT, 0.5)}`;
+      const lineEl = document.getElementById("titleline");
+      const line = v.line || "";
+      const span = document.createElement("span");
+      span.textContent = line;
+      lineEl.appendChild(span);
+      document.getElementById("subline").textContent = "NEXT";
+
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      const cin = (KIND === "wipe" && 0) || (KIND === "flash" && 1) || 2;
+
+      // WIPE — skewed accent bar sweeps, headline slides up behind it
+      if (cin === 0) {
+        tl.to("#wipe", { opacity: 0.95, x: "0%", duration: 0.55, ease: "power2.inOut" }, t0);
+        tl.to("#wipe", { x: "240%", opacity: 0, duration: 0.55, ease: "power2.inOut" }, t0 + 0.55);
+        tl.fromTo("#wipeglow", { opacity: 0.8 }, { opacity: 0, duration: 0.7, ease: "power2.out" }, t0 + 0.3);
+        tl.fromTo("#titleline > span", { yPercent: 115, filter: "blur(8px)" }, { yPercent: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, t0 + 0.3);
+      }
+      // FLASH — accent flash, headline slams in with a punch
+      else if (cin === 1) {
+        tl.fromTo("#flash", { opacity: 1 }, { opacity: 0, duration: 0.4, ease: "power2.out" }, t0);
+        tl.fromTo("#titleline > span", { scale: 1.4, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.45, ease: "back.out(2.2)" }, t0 + 0.12);
+      }
+      // ZOOM — expanding ring + camera punch-in through the title
+      else {
+        tl.fromTo("#ring", { opacity: 0.9, scale: 0.1 }, { opacity: 0, scale: 1.2, duration: 0.7, ease: "power2.out" }, t0);
+        tl.fromTo("#camera", { scale: 0.86, filter: "blur(10px)" }, { scale: 1, filter: "blur(0px)", duration: 0.6, ease: "power3.out" }, t0);
+        tl.fromTo("#titleline > span", { yPercent: 40, autoAlpha: 0 }, { yPercent: 0, autoAlpha: 1, duration: 0.4, ease: "power3.out" }, t0 + 0.25);
+      }
+
+      tl.to("#subline", { autoAlpha: 0.9, letterSpacing: "0.34em", duration: 0.4, ease: "power2.out" }, t0 + 0.75);
+      // hold + out
+      tl.to("#camera", { scale: 1.06, duration: 0.4, ease: "sine.inOut" }, t0 + 0.9);
+      tl.to("#titleline > span", { yPercent: -115, filter: "blur(6px)", duration: 0.3, ease: "power2.in" }, t0 + D - 0.32);
+      tl.to("#subline", { autoAlpha: 0, duration: 0.25 }, t0 + D - 0.25);
+
+      window.__timelines["verb-transition"] = tl;
+    </script>
+  </body>
+</html>

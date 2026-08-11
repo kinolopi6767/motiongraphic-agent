@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[
+  {"id":"title","type":"string","label":"Title","default":"Milestones"},
+  {"id":"events","type":"json","label":"Events [{label,value?,color?}]","default":[{"label":"Launch","value":"2024"},{"label":"Now","value":"2026"}]},
+  {"id":"accent","type":"color","label":"Accent color","default":"#4f8cff"},
+  {"id":"bg","type":"color","label":"Background","default":"#0B0E13"},
+  {"id":"textColor","type":"color","label":"Text color","default":"#F2F4F8"},
+  {"id":"startMs","type":"number","label":"Scene start (ms)","default":0},
+  {"id":"sceneMs","type":"number","label":"Scene duration (ms)","default":8000}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0B0E13; }
+      body { font-family: "Inter", sans-serif; }
+      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; perspective: 1200px; }
+      #depth { position: absolute; inset: 0; transform-style: preserve-3d; }
+      #root { position: absolute; inset: 0; }
+      .orb { position: absolute; border-radius: 50%; filter: blur(130px); will-change: transform; }
+      #orb1 { width: 900px; height: 900px; left: -240px; top: -300px; }
+      #orb2 { width: 720px; height: 720px; right: -200px; top: 80px; }
+      #orb3 { width: 640px; height: 640px; left: 26%; bottom: -260px; }
+      #title { position: absolute; top: 150px; left: 200px; right: 200px; font-size: 64px; font-weight: 700; letter-spacing: -0.02em; }
+      #track { position: absolute; top: 560px; left: 220px; right: 220px; height: 8px; border-radius: 999px; transform: translateZ(60px); }
+      #drawline { position: absolute; inset: 0; transform-origin: 0 50%; border-radius: 999px; }
+      #events { position: absolute; top: 0; left: 220px; right: 220px; height: 0; }
+      .ev { position: absolute; top: -58px; will-change: transform; }
+      .dot {
+        width: 26px; height: 26px; border-radius: 50%; border: 6px solid #0B0E13;
+        margin: 0 auto; box-shadow: 0 0 24px rgba(0,0,0,0.6);
+      }
+      .ev .label { margin-top: 34px; font-size: 34px; font-weight: 600; text-align: center; white-space: nowrap; }
+      .ev .value { font-size: 22px; letter-spacing: 0.14em; text-transform: uppercase; text-align: center; margin-top: 4px; opacity: 0.7; white-space: nowrap; }
+      .ev .ring { position: absolute; top: -18px; left: 50%; width: 62px; height: 62px; margin-left: -31px; border-radius: 50%; border: 3px solid; opacity: 0; }
+      #shimmer { position: absolute; top: 0; bottom: 0; width: 40%; border-radius: 999px; transform: translateX(-150%); }
+      #maxlayer { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="verb-timeline" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30">
+      <div id="camera">
+        <div id="depth">
+          <div class="orb" id="orb1"></div>
+          <div class="orb" id="orb2"></div>
+          <div class="orb" id="orb3"></div>
+        </div>
+        <div id="title"></div>
+        <div id="track"><div id="drawline"></div><div id="shimmer"></div></div>
+        <div id="events"></div>
+      </div>
+      <div id="maxlayer"></div>
+    </div>
+    <script>
+      const v = window.__hyperframes.getVariables();
+      const D = (v.sceneMs || 8000) / 1000;
+      const t0 = v.startMs / 1000;
+      const ACCENT = v.accent || "#4f8cff";
+      const TEXT = v.textColor || "#F2F4F8";
+      const BG = v.bg || "#0B0E13";
+
+      const rgba = (hex, a) => {
+        const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+        if (!m) return `rgba(80,140,255,${a})`;
+        const n = parseInt(m[1], 16);
+        return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+      };
+
+      document.documentElement.style.background = BG;
+      document.getElementById("title").textContent = v.title || "";
+      document.getElementById("title").style.color = TEXT;
+      document.getElementById("track").style.background = rgba(ACCENT, 0.16);
+      document.getElementById("drawline").style.background = `linear-gradient(90deg, ${rgba(ACCENT, 0.4)}, ${ACCENT})`;
+      document.getElementById("shimmer").style.background = "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)";
+      for (const [sel, a] of [["#orb1", 0.3], ["#orb2", 0.24], ["#orb3", 0.2]]) {
+        document.querySelector(sel).style.background = rgba(ACCENT, a);
+      }
+
+      const events = (Array.isArray(v.events) && v.events.length ? v.events : [{ label: "Launch", value: "2024" }, { label: "Now", value: "2026" }]);
+      const host = document.getElementById("events");
+      const dots = [];
+      const W = 1920 - 220 - 220;
+      events.forEach((e, i) => {
+        const x = i / (events.length - 1) * W;
+        const el = document.createElement("div");
+        el.className = "ev";
+        el.style.left = `${x}px`;
+        el.style.transform = "translateX(-50%)";
+        const dot = document.createElement("div");
+        dot.className = "dot";
+        dot.style.background = e.color || (i === events.length - 1 ? ACCENT : rgba(ACCENT, 0.75));
+        const ring = document.createElement("div");
+        ring.className = "ring";
+        ring.style.borderColor = ACCENT;
+        const lab = document.createElement("div");
+        lab.className = "label";
+        lab.textContent = e.label;
+        lab.style.color = TEXT;
+        const val = document.createElement("div");
+        val.className = "value";
+        val.textContent = e.value || "";
+        val.style.color = ACCENT;
+        el.appendChild(dot);
+        el.appendChild(ring);
+        el.appendChild(lab);
+        el.appendChild(val);
+        host.appendChild(el);
+        dots.push({ el, dot, ring, x });
+      });
+
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // ---------- 1 · ENTRANCE ----------
+      tl.from("#title", { autoAlpha: 0, y: 30, duration: 0.6, ease: "power3.out" }, t0 + 0.05);
+      tl.fromTo("#drawline", { scaleX: 0 }, { scaleX: 1, duration: 1.0, ease: "power2.inOut" }, t0 + 0.25);
+      dots.forEach((d, i) => {
+        const at = t0 + 0.45 + i * 0.3;
+        tl.fromTo(d.dot, { scale: 0, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.45, ease: "back.out(2.4)" }, at);
+        tl.fromTo(d.el, { y: 26, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, ease: "power3.out" }, at + 0.1);
+      });
+
+      // ---------- 2 · AMBIENT — the line breathes, dots pulse ----------
+      const amb = t0 + D * 0.4;
+      tl.to("#shimmer", { x: "360%", duration: 2.6, ease: "power1.inOut", repeat: -1 }, amb);
+      dots.forEach((d, i) => {
+        tl.to(d.dot, { scale: 1.18, duration: 1.4 + i * 0.25, ease: "sine.inOut", repeat: -1, yoyo: true }, amb);
+        tl.to(d.el, { y: i % 2 ? 12 : -12, duration: 2.4 + i * 0.3, ease: "sine.inOut", repeat: -1, yoyo: true }, amb + 0.4);
+      });
+      tl.to("#title", { opacity: 0.6, duration: 2.0, repeat: -1, yoyo: true, ease: "sine.inOut" }, amb);
+      tl.to("#orb1", { x: 220, y: 180, scale: 1.25, duration: 6.0, ease: "sine.inOut", repeat: -1, yoyo: true }, t0);
+      tl.to("#orb2", { x: -200, y: -140, scale: 1.2, duration: 6.8, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 0.6);
+      tl.to("#orb3", { x: 160, y: -200, scale: 1.28, duration: 7.4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 1.1);
+
+      // ---------- 3 · EMPHASIS — the destination stamps ----------
+      const beat = t0 + D * 0.72;
+      const last = dots[dots.length - 1];
+      tl.fromTo(last.ring, { opacity: 0.9, scale: 0.4 }, { opacity: 0, scale: 2.4, duration: 0.9, ease: "power2.out" }, beat);
+      tl.fromTo(last.dot, { scale: 1 }, { scale: 1.45, duration: 0.35, ease: "back.out(2)" }, beat);
+      tl.to(last.dot, { scale: 1, duration: 0.5, ease: "power2.out" }, beat + 0.35);
+      tl.fromTo("#drawline", { opacity: 1 }, { opacity: 0.55, duration: 0.4 }, beat + 0.2);
+      tl.to("#drawline", { opacity: 1, duration: 0.6, ease: "power2.out" }, beat + 0.6);
+
+      // ---------- 4 · EXIT ----------
+      const ex = t0 + D * 0.9;
+      tl.to(dots.map((d) => d.el), { y: -70, autoAlpha: 0, duration: 0.55, stagger: 0.06, ease: "power2.in" }, ex);
+      tl.to("#drawline, #shimmer", { autoAlpha: 0, duration: 0.4 }, ex + 0.05);
+      tl.to("#title", { autoAlpha: 0, y: -20, duration: 0.45, ease: "power2.in" }, ex + 0.05);
+
+      // camera depth rig
+      tl.fromTo("#camera", { scale: 1.0 }, { scale: 1.05, duration: D, ease: "sine.inOut" }, t0);
+      tl.fromTo("#camera", { rotationX: -0.7, rotationY: 1.2 }, { rotationX: 0.8, rotationY: -1.2, duration: D, ease: "sine.inOut", repeat: -1, yoyo: true }, t0);
+
+      // ---------- MAX QUALITY · particles ----------
+      if (v.maxMotion) {
+        const layer = document.getElementById("maxlayer");
+        layer.style.opacity = 1;
+        let s = 3131;
+        const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+        for (let i = 0; i < 26; i++) {
+          const p = document.createElement("div");
+          const size = 5 + rnd() * 9;
+          p.style.cssText = `position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:${rgba(ACCENT, 0.45)};filter:blur(${(2 + rnd() * 5).toFixed(1)}px);left:${(rnd() * 100).toFixed(1)}%;top:${(rnd() * 100).toFixed(1)}%`;
+          layer.appendChild(p);
+          tl.to(p, { y: (rnd() - 0.5) * 240, x: (rnd() - 0.5) * 180, opacity: 0.12 + rnd() * 0.3, duration: 3 + rnd() * 4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + rnd() * 2);
+        }
+      }
+
+      window.__timelines["verb-timeline"] = tl;
+    </script>
+  </body>
+</html>

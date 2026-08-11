@@ -4,7 +4,7 @@
  * Director + scene agents MUST satisfy this; violations trigger agent retries.
  */
 
-export const VERBS = ["count-up", "chart-race", "kinetic-title", "pipeline-flow"];
+export const VERBS = ["count-up", "chart-race", "kinetic-title", "pipeline-flow", "timeline", "radial-gauge"];
 
 export const TIMING = {
   MIN_SCENE_S: 4,
@@ -59,6 +59,19 @@ export function validateSceneValues(verb, values) {
       if (!Array.isArray(values.nodes) || values.nodes.length < 2 || values.nodes.length > 6)
         errors.push("pipeline-flow: nodes must be 2-6");
       if (typeof values.title !== "string" || !values.title) errors.push("pipeline-flow: title required");
+      break;
+    case "timeline":
+      if (!Array.isArray(values.events) || values.events.length < 2 || values.events.length > 6)
+        errors.push("timeline: events must be 2-6");
+      values?.events?.forEach((it, i) => {
+        if (!it || !it.label) errors.push(`timeline: event ${i} needs a label`);
+      });
+      if (typeof values.title !== "string" || !values.title) errors.push("timeline: title required");
+      break;
+    case "radial-gauge":
+      if (typeof values.value !== "number" || values.value < 0 || values.value > 9999)
+        errors.push("radial-gauge: value must be a number");
+      if (!values.label || typeof values.label !== "string") errors.push("radial-gauge: label required");
       break;
     default:
       errors.push(`unknown verb ${verb}`);

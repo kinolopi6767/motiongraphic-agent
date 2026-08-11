@@ -2,7 +2,7 @@
 
 export type HookOption = { hook: string; microhook?: string };
 
-export const VERBS = ["count-up", "chart-race", "kinetic-title", "pipeline-flow"] as const;
+export const VERBS = ["count-up", "chart-race", "kinetic-title", "pipeline-flow", "timeline", "radial-gauge"] as const;
 export type Verb = (typeof VERBS)[number];
 
 export interface SceneValues {
@@ -91,6 +91,10 @@ export function sceneSummary(scene: StoryboardScene): string {
       return (Array.isArray(v.lines) ? (v.lines as string[])[0] : "") || "headline";
     case "pipeline-flow":
       return String(v.title ?? "pipeline");
+    case "timeline":
+      return String(v.title ?? "timeline");
+    case "radial-gauge":
+      return String(v.label ?? v.value ?? "gauge");
   }
 }
 
@@ -104,6 +108,10 @@ export function sceneBadge(scene: StoryboardScene): string {
       return "TITLE";
     case "pipeline-flow":
       return "FLOW";
+    case "timeline":
+      return "TIME";
+    case "radial-gauge":
+      return "GAUGE";
   }
 }
 
@@ -138,6 +146,19 @@ export function validateSceneValues(verb: Verb, values: SceneValues): string[] {
         errors.push("pipeline-flow: nodes must be 2-6");
       if (typeof values.title !== "string" || !values.title) errors.push("pipeline-flow: title required");
       break;
+    case "timeline":
+      if (!Array.isArray(values.events) || (values.events as unknown[]).length < 2 || (values.events as unknown[]).length > 6)
+        errors.push("timeline: events must be 2-6");
+      (values.events as Array<{ label?: string }> | undefined)?.forEach((it, i) => {
+        if (!it || !it.label) errors.push(`timeline: event ${i} needs a label`);
+      });
+      if (typeof values.title !== "string" || !values.title) errors.push("timeline: title required");
+      break;
+    case "radial-gauge":
+      if (typeof values.value !== "number" || values.value < 0 || values.value > 9999)
+        errors.push("radial-gauge: value must be a number");
+      if (!values.label || typeof values.label !== "string") errors.push("radial-gauge: label required");
+      break;
     default:
       errors.push(`unknown verb ${verb}`);
   }
@@ -166,6 +187,8 @@ export function sceneAnnotation(
     "chart-race": "Ranks the story's quantities — comparative proof.",
     "kinetic-title": "Typography as motion — the headline moment.",
     "pipeline-flow": "Systems view — how the parts connect.",
+    timeline: "The journey drawn out — milestones across time.",
+    "radial-gauge": "One metric as a living dial — completion, share, score.",
   };
 
   const pacing = scene.duration > 8 ? "Slow beat — let the data breathe." : "Quick beat — keeps the cut crisp.";
