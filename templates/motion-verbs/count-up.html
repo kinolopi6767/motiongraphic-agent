@@ -19,7 +19,8 @@
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0B0E13; }
       body { font-family: "Inter", sans-serif; }
-      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; }
+      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; perspective: 1100px; }
+      #depth { position: absolute; inset: 0; transform-style: preserve-3d; }
       #root { position: absolute; inset: 0; }
       .orb { position: absolute; border-radius: 50%; filter: blur(130px); will-change: transform; }
       #orb1 { width: 880px; height: 880px; left: -200px; top: -280px; }
@@ -30,6 +31,7 @@
         top: 300px; left: 200px; right: 200px;
         font-size: 250px; font-weight: 800; letter-spacing: -0.035em;
         font-variant-numeric: tabular-nums; line-height: 1; will-change: transform;
+        transform: translateZ(70px);
       }
       #prefix, #suffix { font-size: 96px; font-weight: 700; }
       #suffix { color: var(--accent); }
@@ -55,9 +57,11 @@
   <body>
     <div id="root" data-composition-id="verb-count-up" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30">
       <div id="camera">
-        <div class="orb" id="orb1"></div>
-        <div class="orb" id="orb2"></div>
-        <div class="orb" id="orb3"></div>
+        <div id="depth">
+          <div class="orb" id="orb1"></div>
+          <div class="orb" id="orb2"></div>
+          <div class="orb" id="orb3"></div>
+        </div>
         <div id="halo"></div>
       </div>
       <div id="maxlayer"></div>
@@ -156,8 +160,9 @@
       tl.to("#label", { y: -30, autoAlpha: 0, duration: 0.55, ease: "power2.in" }, ex + 0.08);
       tl.to("#rule", { autoAlpha: 0, duration: 0.4 }, ex + 0.05);
 
-      // camera drift
+      // camera drift + 3D depth rig
       tl.fromTo("#camera", { scale: 1.0 }, { scale: 1.06, duration: D, ease: "sine.inOut" }, t0);
+      tl.fromTo("#camera", { rotationX: -0.7, rotationY: 1.2 }, { rotationX: 0.8, rotationY: -1.2, duration: D, ease: "sine.inOut", repeat: -1, yoyo: true }, t0);
 
       // ---------- MAX QUALITY · extra ambient particle layer ----------
       if (v.maxMotion) {

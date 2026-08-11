@@ -18,7 +18,8 @@
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0B0E13; }
       body { font-family: "Inter", sans-serif; }
-      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; }
+      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; perspective: 1200px; }
+      #depth { position: absolute; inset: 0; transform-style: preserve-3d; }
       #root { position: absolute; inset: 0; }
       .orb { position: absolute; border-radius: 50%; filter: blur(130px); will-change: transform; }
       #orb1 { width: 900px; height: 900px; left: -220px; top: -260px; }
@@ -27,6 +28,9 @@
       #kicker {
         position: absolute; top: 208px; left: 200px; font-size: 26px;
         letter-spacing: 0.34em; text-transform: uppercase; opacity: 0;
+        display: inline-block; padding: 10px 22px; border-radius: 999px;
+        background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
+        backdrop-filter: blur(10px);
       }
       #glowbar {
         position: absolute; top: 0; height: 6px; width: 0px; left: 196px;
@@ -35,6 +39,7 @@
       h1 {
         position: absolute; top: 300px; left: 190px; right: 190px;
         font-size: 104px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.08;
+        transform: translateZ(60px);
       }
       h1 .line { display: block; overflow: hidden; }
       h1 .line > span { display: inline-block; will-change: transform, filter; }
@@ -48,9 +53,11 @@
   <body>
     <div id="root" data-composition-id="verb-kinetic-title" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30">
       <div id="camera">
-        <div class="orb" id="orb1"></div>
-        <div class="orb" id="orb2"></div>
-        <div class="orb" id="orb3"></div>
+        <div id="depth">
+          <div class="orb" id="orb1"></div>
+          <div class="orb" id="orb2"></div>
+          <div class="orb" id="orb3"></div>
+        </div>
       </div>
       <div id="maxlayer"></div>
       <div class="clip" data-start="0" data-duration="7.6" data-track-index="1">
@@ -138,9 +145,10 @@
       tl.to("#kicker", { autoAlpha: 0, y: -18, duration: 0.5, ease: "power2.in" }, ex + 0.1);
       tl.to("#glowbar", { autoAlpha: 0, duration: 0.4 }, ex + 0.1);
 
-      // camera: continuous drift + settle (R1 camera language)
+      // camera: continuous drift + settle (R1 camera language) + 3D depth rig
       tl.fromTo("#camera", { scale: 1.0 }, { scale: 1.05, duration: D, ease: "sine.inOut" }, t0);
       tl.to("#camera", { rotation: 0.35, duration: D / 2, ease: "sine.inOut", repeat: 1, yoyo: true }, t0);
+      tl.fromTo("#camera", { rotationX: -0.8, rotationY: 1.4 }, { rotationX: 0.9, rotationY: -1.4, duration: D, ease: "sine.inOut", repeat: -1, yoyo: true }, t0);
 
       // ---------- MAX QUALITY · extra ambient particle layer ----------
       if (v.maxMotion) {

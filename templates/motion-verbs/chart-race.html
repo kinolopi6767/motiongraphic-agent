@@ -16,7 +16,8 @@
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0B0E13; }
       body { font-family: "Inter", sans-serif; }
-      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; }
+      #camera { position: absolute; inset: 0; transform-origin: 50% 50%; perspective: 1200px; }
+      #depth { position: absolute; inset: 0; transform-style: preserve-3d; }
       #root { position: absolute; inset: 0; }
       .orb { position: absolute; border-radius: 50%; filter: blur(130px); will-change: transform; }
       #orb1 { width: 900px; height: 900px; left: -240px; top: -300px; }
@@ -29,6 +30,7 @@
       #chart {
         position: absolute; top: 300px; left: 200px; right: 200px; height: 520px;
         display: flex; align-items: flex-end; gap: 90px;
+        transform: translateZ(50px);
       }
       .bar-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; position: relative; will-change: transform; }
       .bar { width: 100%; transform-origin: 50% 100%; border-radius: 14px 14px 0 0; position: relative; overflow: hidden; }
@@ -47,9 +49,11 @@
   <body>
     <div id="root" data-composition-id="verb-chart-race" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30">
       <div id="camera">
-        <div class="orb" id="orb1"></div>
-        <div class="orb" id="orb2"></div>
-        <div class="orb" id="orb3"></div>
+        <div id="depth">
+          <div class="orb" id="orb1"></div>
+          <div class="orb" id="orb2"></div>
+          <div class="orb" id="orb3"></div>
+        </div>
         <div id="halo"></div>
       </div>
       <div id="maxlayer"></div>
