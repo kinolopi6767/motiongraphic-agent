@@ -74,47 +74,73 @@ function normalizeUsage(c: Cfg, raw: { usage?: Record<string, number> }): Usage 
 
 async function request<T>(c: Cfg, system: string, prompt: string, temperature: number): Promise<{ json: T; usage: Usage }> {
   const key = await apiKeyFor(c);
-  const url = `${c.baseUrl.replace(/\/$/, "")}/chat/completions`;
+  const base = c.baseUrl.replace(/\/$/, "");
   const messages = [
     { role: "system", content: system + "\n\nReply with ONLY valid JSON. No markdown fences." },
     { role: "user", content: prompt },
   ];
 
-  let res: Response;
-  if (c.provider === "anthropic") {
-    res = await fetch(`${c.baseUrl.replace(/\/$/, "")}/messages`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: c.model,
-        max_tokens: 4096,
-        temperature,
-        system: messages[0].content,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-  } else {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: c.model, temperature, messages }),
-    });
+  const doFetch = async (): Promise<{ data: Record<string, unknown>; status: number }> => {
+    let res: Response;
+    if (c.provider === "anthropic") {
+      res = await fetch(`${base}/messages`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: c.model,
+          max_tokens: 4096,
+          temperature,
+          system: messages[0].content,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+    } else {
+      res = await fetch(`${base}/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model: c.model, temperature, messages }),
+      });
+    }
+    return { data: await res.json().catch(() => ({})), status: res.status };
+  };
+
+  // Retry with backoff on network errors, 429 (rate limit) and 5xx (server).
+  let last: { data: Record<string, unknown>; status: number } | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 800 * attempt));
+    try {
+      const out = await doFetch();
+      if (out.status >= 200 && out.status < 300) {
+        const text: string =
+          c.provider === "anthropic"
+            ? ((out.data.content as Array<{ type: string; text: string }>) ?? [])
+                .filter((b) => b.type === "text")
+                .map((b) => b.text)
+                .join("")
+            : (((out.data.choices as Array<{ message: { content?: string } }>) ?? [])[0]?.message?.content ?? "");
+        const json = JSON.parse(text.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim()) as T;
+        return { json, usage: normalizeUsage(c, out.data) };
+      }
+      if (out.status !== 429 && out.status < 500) {
+        throw new Error(`LLM ${out.status}: ${JSON.stringify(out.data).slice(0, 300)}`);
+      }
+      last = out; // 429 / 5xx → retry
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error(`LLM returned invalid JSON: ${String(e.message).slice(0, 200)}`);
+      if (!(e instanceof Error) || !/LLM \d+:/.test(e.message)) {
+        // network-level failure (fetch TypeError, timeouts) → retry
+        last = null;
+        if (attempt === 2) throw e;
+        continue;
+      }
+      throw e;
+    }
   }
-  if (!res.ok) throw new Error(`LLM ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const data = await res.json();
-  const text: string =
-    c.provider === "anthropic"
-      ? (data.content ?? [])
-          .filter((b: { type: string }) => b.type === "text")
-          .map((b: { text: string }) => b.text)
-          .join("")
-      : (data.choices?.[0]?.message?.content ?? "");
-  const json = JSON.parse(text.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim()) as T;
-  return { json, usage: normalizeUsage(c, data) };
+  throw new Error(`LLM ${last?.status ?? "?"}: ${JSON.stringify(last?.data ?? {}).slice(0, 300)}`);
 }
 
 /** JSON call that also returns token usage (brief, hooks, voice-tier). */

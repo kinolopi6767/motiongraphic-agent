@@ -173,14 +173,31 @@ async function readConfig() {
 }
 
 /** Run one agent pass (per ratio); returns { log, projectDir, code }. */
-async function runAgent(args, env) {
-  const child = spawn("node", args, { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"], env });
+async function runAgent(args, env, cancelFile, segmentCount) {
+  // detached: true → child leads its own process group; cancel kills the group
+  const child = spawn("node", args, {
+    cwd: ROOT,
+    stdio: ["ignore", "pipe", "pipe"],
+    env,
+    detached: true,
+  });
   let log = "";
-  const updateStage = async (stage) => {
+  let buffer = "";
+  let cancelled = false;
+  const cancelTimer = setInterval(() => {
+    readFile(cancelFile)
+      .then(() => {
+        cancelled = true;
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch {}
+      })
+      .catch(() => {});
+  }, 1500);
+  const updateJob = async (patch) => {
     try {
       const cur = JSON.parse(await readFile(jobFile, "utf8"));
-      cur.stage = stage;
-      cur.updatedAt = new Date().toISOString();
+      Object.assign(cur, patch, { updatedAt: new Date().toISOString() });
       await writeFile(jobFile, JSON.stringify(cur, null, 2));
     } catch {}
   };
@@ -190,22 +207,31 @@ async function runAgent(args, env) {
     if (/snapshot|segment|render|Render complete/i.test(line)) return "rendering";
     return null;
   };
-  child.stdout.on("data", (d) => {
+  const onData = (d) => {
     log += d;
-    const stage = mapStage(String(d));
-    if (stage) updateStage(stage);
-  });
-  child.stderr.on("data", (d) => {
-    log += d;
-    const stage = mapStage(String(d));
-    if (stage) updateStage(stage);
-  });
+    const chunk = String(d);
+    buffer += chunk;
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const stage = mapStage(line);
+      if (stage) updateJob({ stage });
+      // per-segment progress: "[agent] segment k: <path>"
+      const sm = /\[agent\] segment (\d+):/.exec(line);
+      if (sm && segmentCount) {
+        updateJob({ progress: { current: Number(sm[1]) + 1, total: segmentCount, pct: Math.round(((Number(sm[1]) + 1) / segmentCount) * 100) } });
+      }
+    }
+  };
+  child.stdout.on("data", onData);
+  child.stderr.on("data", onData);
   const code = await new Promise((resolveP) => {
     child.on("error", resolveP.bind(null, -1));
     child.on("close", resolveP);
   });
+  clearInterval(cancelTimer);
   const m = log.match(/\[agent\] project: (.+)/);
-  return { code, log, projectDir: m ? resolve(m[1].trim()) : null };
+  return { code, log, projectDir: m ? resolve(m[1].trim()) : null, cancelled };
 }
 
 let recordId;
@@ -246,6 +272,7 @@ try {
         status: "running",
         kind,
         sceneIndex,
+        cost: queuedCost,
         startedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       },
@@ -256,6 +283,33 @@ try {
 
   const seed = seedArg || undefined;
   const startedAtMs = Date.now();
+  const cancelFile = join(JOB_DIR, `${jobId}.cancel`);
+
+  // a queued job may already have been cancelled before this worker started
+  if (
+    await readFile(cancelFile)
+      .then(() => true)
+      .catch(() => false)
+  ) {
+    await writeFile(
+      jobFile,
+      JSON.stringify(
+        {
+          id: jobId,
+          storyboardId: recordId,
+          status: "cancelled",
+          kind,
+          sceneIndex,
+          error: "cancelled before it started",
+          createdAt: new Date().toISOString(),
+          finishedAt: new Date().toISOString(),
+        },
+        null,
+        2
+      )
+    );
+    process.exit(0);
+  }
 
   const config = await readConfig();
   const voice = config.voice;
@@ -343,9 +397,31 @@ try {
     }
     if (seed) args.push(`--seed=${seed}`);
 
-    const { code, log, projectDir } = await runAgent(args, env);
+    const { code, log, projectDir, cancelled } = await runAgent(args, env, cancelFile, segmentCount);
     masterLog += log;
-    wlog(`ratio ${ratio}: exit ${code} project ${projectDir}`);
+    wlog(`ratio ${ratio}: exit ${code} project ${projectDir} cancelled=${cancelled}`);
+    if (cancelled) {
+      await writeFile(
+        jobFile,
+        JSON.stringify(
+          {
+            id: jobId,
+            storyboardId: recordId,
+            status: "cancelled",
+            kind,
+            sceneIndex,
+            cost: queuedCost,
+            refunded: true,
+            error: "cancelled by user",
+            createdAt: new Date().toISOString(),
+            finishedAt: new Date().toISOString(),
+          },
+          null,
+          2
+        )
+      );
+      process.exit(0);
+    }
     if (code !== 0 || !projectDir) throw new Error(`pipeline exited with code ${code} (ratio ${ratio})`);
 
     const segDir = join(projectDir, "segments");

@@ -12,11 +12,12 @@ const JOB_STORE = join(process.cwd(), "data", "jobs");
 // Built via runtime concatenation so Turbopack doesn't trace it as a module import.
 const JOB_RUNNER = [process.cwd(), "lib", ["render-job", ".", "mjs"].join("")].join("/");
 
-type JobRecord = {
+  type JobRecord = {
   id: string;
   storyboardId?: string;
-  status: "queued" | "running" | "done" | "failed";
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
   stage?: string;
+  progress?: { current: number; total: number; pct: number };
   kind?: "full" | "segment";
   sceneIndex?: number;
   ratios?: string[];
@@ -165,10 +166,10 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   const jobs = await listJobs();
-  // Refund sweep: failed jobs get their credits back exactly once.
+  // Refund sweep: failed/cancelled jobs get their credits back exactly once.
   let swept = 0;
   for (const j of jobs) {
-    if (j.status === "failed" && !j.refunded && j.cost) {
+    if ((j.status === "failed" || j.status === "cancelled") && !j.refunded && j.cost) {
       await credit(j.cost, `refund:${j.id}`);
       j.refunded = true;
       await writeFile(join(JOB_STORE, `${j.id}.json`), JSON.stringify(j, null, 2));

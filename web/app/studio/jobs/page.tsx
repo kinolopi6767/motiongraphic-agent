@@ -11,11 +11,16 @@ type Motion = { scene: number; duration: number; frames: number; score: number; 
 type Job = {
   id: string;
   storyboardId?: string;
-  status: "queued" | "running" | "done" | "failed";
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
   stage?: string;
+  progress?: { current: number; total: number; pct: number };
   kind?: "full" | "segment";
   sceneIndex?: number;
+  ratios?: string[];
   quality?: string;
+  videos?: Record<string, string>;
+  thumbnails?: Record<string, string>;
+  ratiosList?: string[];
   cost?: number;
   refunded?: boolean;
   error?: string;
@@ -25,13 +30,11 @@ type Job = {
   motion?: Motion[];
   segments?: string[];
   thumbnailPath?: string;
-  thumbnails?: Record<string, string>;
-  videos?: Record<string, string>;
-  ratios?: string[];
   sfx?: boolean;
   voice?: { tier?: string; words?: number; error?: string } | null;
   seed?: string;
   createdAt: string;
+  startedAt?: string;
   finishedAt?: string;
 };
 
@@ -40,9 +43,54 @@ const tone: Record<Job["status"], "neutral" | "accent" | "ok" | "danger" | "warn
   running: "accent",
   done: "ok",
   failed: "danger",
+  cancelled: "warn",
 };
 
 const REFRESH_MS = 2500;
+
+/** Elapsed/age label for a job — live while it runs. */
+function Elapsed({ job, now }: { job: Job; now: number }) {
+  const from = job.startedAt ?? job.createdAt;
+  const to = job.finishedAt ?? new Date(now).toISOString();
+  const sec = Math.max(0, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 1000));
+  if (sec < 60) return <span>{sec}s</span>;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return (
+    <span>
+      {m}m {String(s).padStart(2, "0")}s
+    </span>
+  );
+}
+
+/** Cancel a queued/running job (refunds immediately). */
+function CancelButton({ job, onDone }: { job: Job; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const cancel = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/cancel`, { method: "POST" });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error ?? "cancel failed");
+      }
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "cancel failed");
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button size="sm" variant="danger" onClick={cancel} disabled={busy}>
+        {busy ? "Cancelling…" : "Cancel"}
+      </Button>
+      {error && <span className="text-[12px] text-danger">{error}</span>}
+    </div>
+  );
+}
 
 function LogViewer({ jobId }: { jobId: string }) {
   const [open, setOpen] = useState(false);
@@ -286,6 +334,12 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [busy, setBusy] = useState(true);
   const [tick, setTick] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -374,12 +428,44 @@ export default function JobsPage() {
                       "—"
                     )}{" "}
                     · queued {new Date(j.createdAt).toLocaleTimeString()}
+                    {j.startedAt && (
+                      <>
+                        {" "}
+                        · running <Elapsed job={j} now={now} />
+                      </>
+                    )}
                     {j.finishedAt && ` · finished ${new Date(j.finishedAt).toLocaleTimeString()}`}
                   </p>
                   {j.error && <p className="mt-1 text-[13px] text-danger">{j.error}</p>}
+                  {j.status === "running" && j.progress && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-[12px] text-text-low">
+                        <span>
+                          {j.progress.current}/{j.progress.total} segments
+                        </span>
+                        <span className="tabular-nums">{j.progress.pct}%</span>
+                      </div>
+                      <div
+                        className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-3"
+                        role="progressbar"
+                        aria-valuenow={j.progress.pct}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label={`Render progress: segment ${j.progress.current} of ${j.progress.total}`}
+                      >
+                        <div
+                          className="h-full rounded-full bg-accent transition-[width] duration-500"
+                          style={{ width: `${j.progress.pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {j.status === "failed" && (
                   <RetryButton job={j} onQueued={() => setTick((t) => t + 1)} />
+                )}
+                {(j.status === "queued" || j.status === "running") && (
+                  <CancelButton job={j} onDone={() => setTick((t) => t + 1)} />
                 )}
               </div>
               {j.status === "done" && <Filmstrip job={j} />}
