@@ -11,6 +11,7 @@ function BriefForm() {
   const [brief, setBrief] = useState(search.get("brief") ?? "");
   const [duration, setDuration] = useState("30");
   const [tone, setTone] = useState("");
+  const [ratio, setRatio] = useState("16:9");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,6 +27,7 @@ function BriefForm() {
           brief: brief.trim(),
           duration: duration ? Number(duration) : undefined,
           tone: tone || undefined,
+          ratio,
         }),
       });
       if (!res.ok) {
@@ -81,7 +83,32 @@ function BriefForm() {
               className="min-h-[44px] rounded-ctl border border-border-subtle bg-surface-1 px-3 text-[15px] outline-none focus:border-accent"
             />
           </label>
-          <label className="flex flex-col gap-2">
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-[14px] font-medium text-text-med">Output ratio</legend>
+            <div className="flex gap-2">
+              {["16:9", "1:1", "9:16"].map((r) => (
+                <label
+                  key={r}
+                  className={`flex min-h-[44px] flex-1 cursor-pointer items-center justify-center rounded-ctl border text-[14px] transition-colors ${
+                    ratio === r
+                      ? "border-accent bg-accent-soft font-semibold text-accent-strong"
+                      : "border-border-subtle bg-surface-1 text-text-med hover:text-text-hi"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="ratio"
+                    value={r}
+                    checked={ratio === r}
+                    onChange={() => setRatio(r)}
+                    className="sr-only"
+                  />
+                  {r}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <label className="flex flex-col gap-2 sm:col-span-2">
             <span className="text-[14px] font-medium text-text-med">Tone (optional)</span>
             <input
               value={tone}

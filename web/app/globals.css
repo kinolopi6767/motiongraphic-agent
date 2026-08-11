@@ -23,7 +23,7 @@
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     --bg-canvas: #f6f7fa;
     --bg-surface-1: #ffffff;
     --bg-surface-2: #f0f2f8;
@@ -37,6 +37,21 @@
     --accent-soft: rgba(79, 70, 229, 0.1);
     --focus-ring: #4f46e5;
   }
+}
+
+:root[data-theme="light"] {
+  --bg-canvas: #f6f7fa;
+  --bg-surface-1: #ffffff;
+  --bg-surface-2: #f0f2f8;
+  --bg-surface-3: #e6e9f3;
+  --border-subtle: #d9deeb;
+  --text-hi: #141824;
+  --text-med: #4c5568;
+  --text-low: #7a8498;
+  --accent: #4f46e5;
+  --accent-strong: #4338ca;
+  --accent-soft: rgba(79, 70, 229, 0.1);
+  --focus-ring: #4f46e5;
 }
 
 @theme inline {
@@ -89,5 +104,11 @@ body {
 }
 
 ::selection {
+  background: var(--accent-soft);
+}
+
+/* Rail click -> scene card highlight */
+.scene-card:target {
+  border-color: var(--accent);
   background: var(--accent-soft);
 }

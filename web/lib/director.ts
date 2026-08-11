@@ -1,5 +1,26 @@
 import { chatJson } from "./zen";
-import { Storyboard, VERBS, validateStoryboard } from "./storyboard";
+import { HookOption, Storyboard, VERBS, validateStoryboard } from "./storyboard";
+
+const HOOKS_SYSTEM = `You are the HOOK ENGINEER of an agentic motion-graphics engine.
+Given a scene, produce exactly 3 DISTINCT hook options that follow the retention
+contract: each option = { hook, microhook }. hook = 1 short cold-open line (max 9
+words) that opens the scene; microhook = 1 short forward-pull line (max 8 words)
+that entices into the next scene. Keep all claims faithful to the given values.
+Never fabricate numbers. Return ONLY valid JSON: {"options":[...]}.`;
+
+/** A/B/C hooks — 3 retention variants for a scene (Flow B step 2). */
+export async function runHooks(scene: Storyboard["scenes"][number]): Promise<HookOption[]> {
+  const data = await chatJson<{ options?: HookOption[] }>(
+    HOOKS_SYSTEM,
+    JSON.stringify({ verb: scene.verb, values: scene.values, currentHook: scene.hook, currentMicrohook: scene.microhook }),
+    0.7,
+  );
+  const options = (data.options ?? [])
+    .filter((o) => o && typeof o.hook === "string" && o.hook.trim().length > 0)
+    .slice(0, 3);
+  if (options.length < 1) throw new Error("hook engineer produced no options");
+  return options;
+}
 
 const DIRECTOR_SYSTEM = `You are the DIRECTOR AGENT of an agentic motion-graphics video engine.
 Turn a brief into a storyboard.json. Requirements:

@@ -16,6 +16,8 @@ type BriefBody = {
   ratio?: string;
 };
 
+const RATIOS = ["16:9", "1:1", "9:16"];
+
 export async function POST(req: NextRequest) {
   let body: BriefBody;
   try {
@@ -31,14 +33,18 @@ export async function POST(req: NextRequest) {
   if (body.duration !== undefined && (body.duration < 8 || body.duration > 90)) {
     return NextResponse.json({ error: "duration must be 8-90s" }, { status: 400 });
   }
+  const ratio = body.ratio ?? "16:9";
+  if (!RATIOS.includes(ratio)) {
+    return NextResponse.json({ error: `ratio must be one of ${RATIOS.join(", ")}` }, { status: 400 });
+  }
 
   try {
-    const storyboard = await runDirector(brief, body);
+    const storyboard = await runDirector(brief, { ...body, ratio });
     const id = `sb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     await mkdir(STORE, { recursive: true });
     await writeFile(
       join(STORE, `${id}.json`),
-      JSON.stringify({ id, brief, storyboard, createdAt: new Date().toISOString() }, null, 2),
+      JSON.stringify({ id, brief, ratio, storyboard, createdAt: new Date().toISOString() }, null, 2),
     );
     return NextResponse.json({ id, storyboard: storyboard as Storyboard });
   } catch (e) {

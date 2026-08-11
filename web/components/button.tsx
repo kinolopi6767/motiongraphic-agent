@@ -9,7 +9,7 @@ export function Button({
   disabled,
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "ghost" | "outline";
+  variant?: "primary" | "ghost" | "outline" | "danger";
   size?: "sm" | "md" | "lg";
 }) {
   return (
@@ -27,6 +27,8 @@ export function Button({
         variant === "outline" &&
           "border border-border-subtle bg-transparent text-text-hi hover:bg-surface-2",
         variant === "ghost" && "text-text-med hover:bg-surface-2 hover:text-text-hi",
+        variant === "danger" &&
+          "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/20",
         className,
       )}
       {...rest}

@@ -12,8 +12,8 @@ import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 
 const [recordFile, jobId, jobFile, outDirArg] = process.argv.slice(2);
-const ROOT = process.env.PIPELINE_ROOT || resolve(import.meta.dirname, "..", "..");
-const JOB_DIR = resolve(import.meta.dirname, "..", "data", "jobs");
+const ROOT = process.env.PIPELINE_ROOT || resolve(process.cwd(), "..");
+const JOB_DIR = join(process.cwd(), "data", "jobs");
 
 const outDir = outDirArg ? resolve(outDirArg) : join(ROOT, "output", "web-jobs");
 
@@ -56,8 +56,31 @@ try {
   });
 
   let log = "";
-  child.stdout.on("data", (d) => (log += d));
-  child.stderr.on("data", (d) => (log += d));
+  /** Map pipeline stderr markers -> job stage (Flow D status chips). */
+  const mapStage = (line) => {
+    if (/using approved storyboard|director|scene agent/i.test(line)) return "planning";
+    if (/manifest|assemble|wrote program/i.test(line)) return "assembling";
+    if (/snapshot|render|rendered|Render complete/i.test(line)) return "rendering";
+    return null;
+  };
+  const updateStage = async (stage) => {
+    try {
+      const cur = JSON.parse(await readFile(jobFile, "utf8"));
+      cur.stage = stage;
+      cur.updatedAt = new Date().toISOString();
+      await writeFile(jobFile, JSON.stringify(cur, null, 2));
+    } catch {}
+  };
+  child.stdout.on("data", (d) => {
+    log += d;
+    const stage = mapStage(String(d));
+    if (stage) updateStage(stage);
+  });
+  child.stderr.on("data", (d) => {
+    log += d;
+    const stage = mapStage(String(d));
+    if (stage) updateStage(stage);
+  });
 
   child.on("error", (e) => fail(`spawn failed: ${e.message}`));
 

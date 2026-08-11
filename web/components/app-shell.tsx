@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { Button } from "@/components/button";
+import { CreditsPill } from "@/components/credits-pill";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { CommandMenu } from "@/components/command-menu";
 
 const NAV = [
   { href: "/studio", label: "Create" },
@@ -29,20 +32,20 @@ export function AppShell({
             <Link
               key={n.href}
               href={n.href}
-              className="min-h-[44px] rounded-ctl px-3 py-2 text-[15px] text-text-med transition-colors hover:bg-surface-2 hover:text-text-hi"
+              className="flex min-h-[44px] items-center rounded-ctl px-3 py-2 text-[15px] text-text-med transition-colors hover:bg-surface-2 hover:text-text-hi"
             >
               {n.label}
             </Link>
           ))}
         </nav>
-        <div className="mt-auto flex flex-col gap-3">
-          <div className="flex items-center justify-between rounded-card border border-border-subtle bg-surface-2 px-3 py-2.5">
-            <span className="text-[13px] text-text-med">Credits</span>
-            <span className="text-[13px] font-semibold tabular-nums text-text-hi">—</span>
-          </div>
+        <div className="mt-auto flex flex-col gap-2">
+          <CreditsPill />
           <Button variant="outline" className="w-full">
-            Settings
+            <Link href="/studio/settings" className="flex w-full items-center justify-center">
+              Settings
+            </Link>
           </Button>
+          <p className="px-1 text-[12px] text-text-low">Press ⌘K for quick actions</p>
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -54,6 +57,7 @@ export function AppShell({
             <span className="hidden rounded-full border border-border-subtle px-3 py-1 text-[13px] text-text-med sm:block">
               ⌘K
             </span>
+            <ThemeToggle />
             <Button>
               <Link href="/studio" className="flex items-center">
                 + New video
@@ -63,6 +67,7 @@ export function AppShell({
         </header>
         <main className="flex-1">{children}</main>
       </div>
+      <CommandMenu />
     </div>
   );
 }

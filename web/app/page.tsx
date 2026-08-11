@@ -75,6 +75,49 @@ export default function Landing() {
           </article>
         ))}
       </section>
+
+      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-24">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            {
+              n: "01",
+              k: "Type a brief",
+              d: "A director agent plans scenes, timing and retention hooks — nothing renders yet, nothing costs.",
+            },
+            {
+              n: "02",
+              k: "Approve the storyboard",
+              d: "Edit any word, number, duration or hook on the cards. Ask “why look” on any scene. Still free.",
+            },
+            {
+              n: "03",
+              k: "Ship the MP4",
+              d: "Queue a render, watch the stage progress, then preview the video inline. Failed renders refund.",
+            },
+          ].map((s) => (
+            <div key={s.n} className="flex gap-4">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-[14px] font-bold text-accent-strong">
+                {s.n}
+              </span>
+              <div>
+                <h2 className="text-[17px] font-semibold">{s.k}</h2>
+                <p className="mt-1.5 text-[15px] leading-relaxed text-text-med">{s.d}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <footer className="relative z-10 border-t border-border-subtle">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-8">
+          <p className="text-[13px] text-text-low">
+            MotionGraphic Agent · local-first · deterministic MP4s from approved storyboards
+          </p>
+          <p className="text-[13px] text-text-low">
+            No account. No database. Your brief, your decisions.
+          </p>
+        </div>
+      </footer>
     </main>
   );
 }

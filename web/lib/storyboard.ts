@@ -1,5 +1,7 @@
 /** Storyboard contract shared by API + UI (mirror of src/schema.mjs). */
 
+export type HookOption = { hook: string; microhook?: string };
+
 export const VERBS = ["count-up", "chart-race", "kinetic-title", "pipeline-flow"] as const;
 export type Verb = (typeof VERBS)[number];
 
@@ -24,6 +26,17 @@ export interface Storyboard {
 }
 
 export const TIMING = { MIN_SCENE_S: 4, MAX_SCENE_S: 12, MIN_TOTAL_S: 8, MAX_TOTAL_S: 90 };
+
+/** First scene whose start lands in the 60-70% value-bomb band (or -1). */
+export function valueBombIndex(scenes: StoryboardScene[], total: number): number {
+  let t = 0;
+  for (let i = 0; i < scenes.length; i++) {
+    const pct = (t / Math.max(total, 1)) * 100;
+    if (pct >= 60 && pct <= 70) return i;
+    t += scenes[i].duration;
+  }
+  return -1;
+}
 
 export function validateStoryboard(sb: unknown): string[] {
   const errors: string[] = [];

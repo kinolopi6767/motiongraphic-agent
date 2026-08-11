@@ -9,6 +9,9 @@ type Job = {
   id: string;
   storyboardId?: string;
   status: "queued" | "running" | "done" | "failed";
+  stage?: string;
+  cost?: number;
+  refunded?: boolean;
   error?: string;
   logFile?: string;
   createdAt: string;
@@ -21,6 +24,52 @@ const tone: Record<Job["status"], "neutral" | "accent" | "ok" | "danger" | "warn
   done: "ok",
   failed: "danger",
 };
+
+const REFRESH_MS = 2500;
+
+function LogViewer({ jobId }: { jobId: string }) {
+  const [open, setOpen] = useState(false);
+  const [log, setLog] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    setOpen((o) => !o);
+    if (open || log !== null) return;
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/log`);
+      if (!res.ok) throw new Error(String(res.status));
+      setLog(await res.text());
+    } catch {
+      setError("log unavailable (worker may not have written it yet)");
+    }
+  };
+
+  if (open) {
+    return (
+      <div className="mt-3">
+        <pre className="max-h-64 overflow-auto rounded-ctl bg-surface-2 p-3 text-[12px] leading-relaxed text-text-med">
+          {log ?? (error || "…")}
+        </pre>
+        <button
+          type="button"
+          className="mt-2 text-[13px] text-text-med underline underline-offset-2 hover:text-text-hi"
+          onClick={() => setOpen(false)}
+        >
+          Hide log
+        </button>
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={load}
+      className="mt-2 text-[13px] text-text-med underline underline-offset-2 hover:text-text-hi"
+    >
+      View log
+    </button>
+  );
+}
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -41,22 +90,24 @@ export default function JobsPage() {
       }
     };
     tick();
-    const iv = setInterval(tick, 2500);
+    const iv = setInterval(tick, REFRESH_MS);
     return () => {
       alive = false;
       clearInterval(iv);
     };
   }, []);
 
+  const active = jobs.some((j) => j.status === "running" || j.status === "queued");
+
   return (
     <AppShell projectTitle="Jobs">
       <main className="mx-auto max-w-4xl px-6 py-10">
         <p className="text-[13px] font-medium uppercase tracking-[0.16em] text-accent-strong">
-          Render queue
+          Render queue {active && <span className="animate-pulse text-accent">· live</span>}
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Jobs</h1>
         <p className="mt-1 text-[14px] text-text-med">
-          Polls automatically while a job is active.
+          Polls automatically while a job is active. Failed jobs auto-refund their credits.
         </p>
 
         {busy && <p className="mt-8 text-[14px] text-text-med">Loading…</p>}
@@ -71,13 +122,26 @@ export default function JobsPage() {
             <li key={j.id} className="rounded-card border border-border-subtle bg-surface-1 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={tone[j.status]}>{j.status}</Badge>
+                    {j.stage && j.stage !== j.status && (
+                      <span className="text-[12px] uppercase tracking-wide text-text-low">
+                        {j.stage}
+                      </span>
+                    )}
                     <span className="text-[14px] font-semibold tabular-nums">{j.id}</span>
+                    {typeof j.cost === "number" && (
+                      <span className="text-[12px] tabular-nums text-text-low">
+                        {j.cost} cr{j.refunded && " · refunded"}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 text-[13px] text-text-med">
                     {j.storyboardId ? (
-                      <Link href={`/studio/${j.storyboardId}`} className="underline decoration-border-subtle underline-offset-2 hover:text-text-hi">
+                      <Link
+                        href={`/studio/${j.storyboardId}`}
+                        className="underline decoration-border-subtle underline-offset-2 hover:text-text-hi"
+                      >
                         {j.storyboardId}
                       </Link>
                     ) : (
@@ -97,18 +161,7 @@ export default function JobsPage() {
                   />
                 )}
               </div>
-              {j.logFile && j.status === "failed" && (
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-[13px] text-text-med">Log</summary>
-                  <a
-                    className="mt-2 block text-[13px] text-accent-strong underline underline-offset-2"
-                    href={`/api/jobs/${j.id}/video`}
-                    onClick={(e) => e.preventDefault()}
-                  >
-                    (server log at {j.logFile})
-                  </a>
-                </details>
-              )}
+              {(j.status === "failed" || j.status === "done") && <LogViewer jobId={j.id} />}
             </li>
           ))}
         </ul>
