@@ -379,7 +379,7 @@ function BriefForm() {
           </p>
         )}
 
-        <Button disabled={busy} className="mt-2 sm:self-start sm:px-10">
+        <Button disabled={busy} onClick={submit} className="mt-2 sm:self-start sm:px-10">
           {busy ? "Director is planning…" : "Plan the storyboard — free"}
         </Button>
         <p className="text-[13px] text-text-low">
