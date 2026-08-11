@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+
+# build / render artifacts
+output/
+projects/
+*.mp4
+.webm
+snapshots/
+
+# debug + temp
+node_modules/.debug/
+.tmp/
+/tmp/
+
+# secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*auth.json
+*PAT*
+
+# editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# next.js (when scaffolded)
+.next/
+out/

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[
+  {"id":"title","type":"string","label":"Title","default":"Headline"},
+  {"id":"lines","type":"json","label":"Lines array","default":["Line one","Line two"]},
+  {"id":"accent","type":"color","label":"Accent color","default":"#4f8cff"},
+  {"id":"accentOn","type":"number","label":"Accent line index (0-based)","default":1},
+  {"id":"kicker","type":"string","label":"Kicker","default":""},
+  {"id":"startMs","type":"number","label":"Scene start (ms)","default":0},
+  {"id":"holdMs","type":"number","label":"Hold (ms)","default":5000}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0e1116; }
+      body { font-family: "Inter", sans-serif; color: #f2f4f8; }
+      #camera {
+        position: absolute; inset: 0; transform-origin: 50% 50%;
+        background: radial-gradient(1000px 700px at 30% 20%, #1a2434 0%, #0e1116 70%);
+      }
+      #root { position: absolute; inset: 0; }
+      .clip { position: absolute; inset: 0; }
+      #kicker {
+        position: absolute;
+        top: 210px; left: 200px; font-size: 26px; letter-spacing: 0.3em;
+        text-transform: uppercase; color: #6fb3ff;
+      }
+      h1 {
+        position: absolute;
+        top: 300px; left: 190px; right: 190px;
+        font-size: 104px; font-weight: 700; letter-spacing: -0.02em;
+        line-height: 1.08;
+      }
+      h1 .line { display: block; overflow: hidden; }
+      h1 .line > span { display: inline-block; will-change: transform; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="verb-kinetic-title" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30">
+      <div id="camera"></div>
+      <div class="clip" data-start="0" data-duration="7.6" data-track-index="1">
+        <div id="kicker"></div>
+        <h1 id="title"></h1>
+      </div>
+    </div>
+    <script>
+      const v = window.__hyperframes.getVariables();
+      const t = v.startMs / 1000;
+      document.getElementById("kicker").textContent = v.kicker;
+      const title = document.getElementById("title");
+      const lines = Array.isArray(v.lines) && v.lines.length ? v.lines : [v.title];
+      lines.forEach((ln, i) => {
+        const line = document.createElement("span");
+        line.className = "line";
+        const inner = document.createElement("span");
+        inner.innerHTML = i === v.accentOn ? `<span style="color:${v.accent}">${ln}</span>` : ln;
+        line.appendChild(inner);
+        title.appendChild(line);
+      });
+
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      tl.from("#kicker", { autoAlpha: 0, y: 20, duration: 0.7, ease: "power3.out" }, t + 0.1);
+      // mask-line reveal: lines slide yPercent 110 → 0 through overflow masks
+      tl.from(".line > span", {
+        yPercent: 110, duration: 1.0, stagger: 0.12, ease: "expo.out",
+      }, t + 0.2);
+
+      // camera drift (R1)
+      tl.to("#camera", { scale: 1.05, duration: 7.6, ease: "sine.inOut" }, t);
+
+      window.__timelines["verb-kinetic-title"] = tl;
+    </script>
+  </body>
+</html>

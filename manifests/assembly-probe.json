@@ -1,0 +1,55 @@
+{
+  "id": "assembly-probe",
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "scenes": [
+    {
+      "verb": "kinetic-title",
+      "duration": 8,
+      "values": {
+        "kicker": "THE VERB LIBRARY",
+        "lines": ["Four verbs in.", "One video out."],
+        "accentOn": 1,
+        "accent": "#4f8cff"
+      }
+    },
+    {
+      "verb": "count-up",
+      "duration": 8,
+      "values": {
+        "value": 21819,
+        "suffix": "stars",
+        "label": "GitHub stars on hyperframes",
+        "accent": "#22c55e"
+      }
+    },
+    {
+      "verb": "chart-race",
+      "duration": 8,
+      "values": {
+        "title": "Engagement by format",
+        "items": [
+          { "label": "Slideshow", "value": 23, "color": "#64748b" },
+          { "label": "B-roll", "value": 41, "color": "#f59e0b" },
+          { "label": "Motion graphics", "value": 67, "color": "#4f8cff" }
+        ],
+        "accent": "#4f8cff"
+      }
+    },
+    {
+      "verb": "pipeline-flow",
+      "duration": 8,
+      "values": {
+        "title": "The engine loop",
+        "nodes": [
+          { "label": "Script", "color": "#4f8cff" },
+          { "label": "Storyboard", "color": "#22c55e" },
+          { "label": "Scenes", "color": "#f59e0b" },
+          { "label": "MP4", "color": "#ef4444" }
+        ],
+        "accent": "#4f8cff"
+      }
+    }
+  ]
+}

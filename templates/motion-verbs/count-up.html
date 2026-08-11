@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[
+  {"id":"label","type":"string","label":"Label","default":"Statistic"},
+  {"id":"value","type":"number","label":"Value","default":21819},
+  {"id":"display","type":"string","label":"Display override","default":""},
+  {"id":"suffix","type":"string","label":"Suffix","default":""},
+  {"id":"prefix","type":"string","label":"Prefix","default":""},
+  {"id":"accent","type":"color","label":"Accent color","default":"#4f8cff"},
+  {"id":"startMs","type":"number","label":"Scene start (ms)","default":0},
+  {"id":"holdMs","type":"number","label":"Hold (ms)","default":5000}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0e1116; }
+      body { font-family: "Inter", sans-serif; color: #f2f4f8; }
+      #camera {
+        position: absolute; inset: 0; transform-origin: 50% 50%;
+        background: radial-gradient(1000px 700px at 70% 20%, #1a2434 0%, #0e1116 70%);
+      }
+      #root { position: absolute; inset: 0; }
+      .clip { position: absolute; inset: 0; }
+      #value {
+        position: absolute;
+        display: flex; align-items: baseline; gap: 16px;
+        top: 330px; left: 200px; right: 200px;
+        font-size: 240px; font-weight: 800; letter-spacing: -0.035em;
+        font-variant-numeric: tabular-nums; line-height: 1;
+      }
+      #prefix, #suffix { font-size: 96px; font-weight: 700; }
+      #suffix { color: var(--accent); }
+      #label {
+        position: absolute;
+        top: 660px; left: 210px; right: 200px;
+        font-size: 40px; letter-spacing: 0.12em; text-transform: uppercase;
+        color: #9aa7b8;
+      }
+      #rule {
+        position: absolute;
+        top: 610px; left: 210px; width: 160px; height: 6px;
+        background: var(--accent); transform-origin: 0 50%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="verb-count-up" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30">
+      <div id="camera"></div>
+      <div class="clip" data-start="0" data-duration="7.6" data-track-index="1">
+        <div id="value"><span id="prefix"></span><span id="num">0</span><span id="suffix"></span></div>
+        <div id="rule"></div>
+        <div id="label"></div>
+      </div>
+    </div>
+    <script>
+      const v = window.__hyperframes.getVariables();
+      const t = v.startMs / 1000;
+      document.documentElement.style.setProperty("--accent", v.accent);
+      document.getElementById("prefix").textContent = v.prefix;
+      document.getElementById("suffix").textContent = v.suffix;
+      document.getElementById("label").textContent = v.label;
+      const numEl = document.getElementById("num");
+
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // rule grows, accent scale pop, number counts up with snap
+      tl.from("#rule", { scaleX: 0, duration: 0.6, ease: "power3.out" }, t + 0.1);
+      tl.from("#value", { autoAlpha: 0, y: 30, duration: 0.7, ease: "power3.out" }, t + 0.2);
+      tl.from("#label", { autoAlpha: 0, y: 16, duration: 0.6, ease: "power2.out" }, t + 0.55);
+      tl.to(numEl, {
+        innerText: v.display || v.value,
+        duration: 1.6, ease: "power2.out",
+        snap: { innerText: 1 },
+      }, t + 0.6);
+      tl.fromTo("#value", { scale: 0.94 }, { scale: 1, duration: 0.5, ease: "back.out(1.7)" }, t + 2.4);
+
+      // camera drift (R1: one ambient layer)
+      tl.to("#camera", { scale: 1.05, duration: 7.6, ease: "sine.inOut" }, t);
+
+      window.__timelines["verb-count-up"] = tl;
+    </script>
+  </body>
+</html>

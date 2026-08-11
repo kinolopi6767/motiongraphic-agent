@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[
+  {"id":"title","type":"string","label":"Title","default":"Comparison"},
+  {"id":"items","type":"json","label":"[{label,value,color}]","default":[{"label":"A","value":42,"color":"#4f8cff"},{"label":"B","value":67,"color":"#22c55e"}]},
+  {"id":"unit","type":"string","label":"Unit","default":""},
+  {"id":"decimal","type":"number","label":"Decimal places","default":0},
+  {"id":"accent","type":"color","label":"Accent color","default":"#4f8cff"},
+  {"id":"startMs","type":"number","label":"Scene start (ms)","default":0},
+  {"id":"holdMs","type":"number","label":"Hold (ms)","default":5000}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0e1116; }
+      body { font-family: "Inter", sans-serif; color: #f2f4f8; }
+      #camera {
+        position: absolute; inset: 0; transform-origin: 50% 50%;
+        background: radial-gradient(1000px 700px at 50% 10%, #1a2434 0%, #0e1116 70%);
+      }
+      #root { position: absolute; inset: 0; }
+      .clip { position: absolute; inset: 0; }
+      #title {
+        position: absolute;
+        top: 130px; left: 200px; font-size: 56px; font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      #chart {
+        position: absolute;
+        top: 280px; left: 200px; right: 200px; height: 520px;
+        display: flex; align-items: flex-end; gap: 90px;
+      }
+      .bar-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
+      .bar {
+        width: 100%; transform-origin: 50% 100%;
+        border-radius: 14px 14px 0 0;
+      }
+      .bar.val { position: relative; }
+      .bar-val {
+        position: absolute; top: -100px; right: 0; width: 100%;
+        text-align: center; font-size: 84px; font-weight: 800;
+        font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+      }
+      .bar-label {
+        margin-top: 28px; text-align: center; font-size: 34px;
+        color: #9aa7b8; letter-spacing: 0.04em;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="verb-chart-race" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30">
+      <div id="camera"></div>
+      <div class="clip" data-start="0" data-duration="7.6" data-track-index="1">
+        <div id="title"></div>
+        <div id="chart"></div>
+      </div>
+    </div>
+    <script>
+      const v = window.__hyperframes.getVariables();
+      const t = v.startMs / 1000;
+      document.getElementById("title").textContent = v.title;
+      const chart = document.getElementById("chart");
+      const items = Array.isArray(v.items) ? v.items : [];
+      const max = Math.max(...items.map(i => i.value), 1);
+      const bars = [];
+      items.forEach((it) => {
+        const col = document.createElement("div");
+        col.className = "bar-col";
+        const bar = document.createElement("div");
+        bar.className = "bar val";
+        bar.style.background = it.color || v.accent;
+        bar.style.height = `${((it.value / max) * 0.8 * 520).toFixed(0)}px`;
+        col.appendChild(bar);
+        const val = document.createElement("div");
+        val.className = "bar-val";
+        const num = document.createElement("span");
+        num.className = "num";
+        num.textContent = "0";
+        val.appendChild(document.createTextNode(""));
+        val.appendChild(num);
+        bar.appendChild(val);
+        const label = document.createElement("div");
+        label.className = "bar-label";
+        label.textContent = it.label;
+        col.appendChild(label);
+        chart.appendChild(col);
+        bars.push({ bar, num, value: it.value, label });
+      });
+
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      tl.from("#title", { autoAlpha: 0, y: 24, duration: 0.6, ease: "power3.out" }, t + 0.1);
+      bars.forEach((b, i) => {
+        // bars grow sequentially (R4: staggered, total < 500ms apart, staggered by editorial order)
+        tl.fromTo(b.bar, { scaleY: 0 }, { scaleY: 1, duration: 0.7, ease: "expo.out" }, t + 0.35 + i * 0.45);
+        tl.to(b.num, { innerText: b.value, snap: { innerText: 1 }, duration: 0.7, ease: "power2.out" }, t + 0.35 + i * 0.45);
+        tl.from(b.label, { autoAlpha: 0, y: 14, duration: 0.4, ease: "power2.out" }, t + 0.5 + i * 0.45);
+      });
+      // callout pop on the final bar (back.out)
+      if (bars.length) {
+        const last = bars[bars.length - 1].bar;
+        tl.fromTo(last, { scale: 0.97 }, { scale: 1, duration: 0.45, ease: "back.out(1.7)" }, t + 0.35 + (bars.length - 1) * 0.45 + 0.75);
+      }
+
+      // camera drift (R1)
+      tl.to("#camera", { scale: 1.06, duration: 7.6, ease: "sine.inOut" }, t);
+
+      window.__timelines["verb-chart-race"] = tl;
+    </script>
+  </body>
+</html>
