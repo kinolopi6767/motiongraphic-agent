@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+/* UI-PLAN §2.1 — studio black (default) + paper light, dual theme */
+:root {
+  --bg-canvas: #0b0e13;
+  --bg-surface-1: #131722;
+  --bg-surface-2: #1a2030;
+  --bg-surface-3: #232b40;
+  --border-subtle: #2a3247;
+  --text-hi: #f2f4f8;
+  --text-med: #aab4c6;
+  --text-low: #6b7589;
+  --accent: #6366f1;
+  --accent-strong: #818cf8;
+  --accent-soft: rgba(99, 102, 241, 0.14);
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+  --focus-ring: #818cf8;
+  --radius-card: 12px;
+  --radius-ctl: 8px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-canvas: #f6f7fa;
+    --bg-surface-1: #ffffff;
+    --bg-surface-2: #f0f2f8;
+    --bg-surface-3: #e6e9f3;
+    --border-subtle: #d9deeb;
+    --text-hi: #141824;
+    --text-med: #4c5568;
+    --text-low: #7a8498;
+    --accent: #4f46e5;
+    --accent-strong: #4338ca;
+    --accent-soft: rgba(79, 70, 229, 0.1);
+    --focus-ring: #4f46e5;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--bg-canvas);
+  --color-surface-1: var(--bg-surface-1);
+  --color-surface-2: var(--bg-surface-2);
+  --color-surface-3: var(--bg-surface-3);
+  --color-border-subtle: var(--border-subtle);
+  --color-text-hi: var(--text-hi);
+  --color-text-med: var(--text-med);
+  --color-text-low: var(--text-low);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-ok: var(--success);
+  --color-warn: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --radius-card: var(--radius-card);
+  --radius-ctl: var(--radius-ctl);
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--bg-canvas);
+  color: var(--text-hi);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* WCAG 2.2 2.4.7 — focus ring never removed */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* WCAG 2.2 2.2.2 / reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+::selection {
+  background: var(--accent-soft);
+}

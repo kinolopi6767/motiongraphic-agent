@@ -1,0 +1,121 @@
+"use client";
+
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AppShell } from "@/components/app-shell";
+import { Button } from "@/components/button";
+
+function BriefForm() {
+  const router = useRouter();
+  const search = useSearchParams();
+  const [brief, setBrief] = useState(search.get("brief") ?? "");
+  const [duration, setDuration] = useState("30");
+  const [tone, setTone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (brief.trim().length < 10 || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/brief", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          brief: brief.trim(),
+          duration: duration ? Number(duration) : undefined,
+          tone: tone || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error ?? `request failed (${res.status})`);
+      }
+      const d = await res.json();
+      router.push(`/studio/${d.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-2xl px-6 py-16">
+      <p className="text-[13px] font-medium uppercase tracking-[0.16em] text-accent-strong">
+        Step 1 · Brief
+      </p>
+      <h1 className="mt-2 text-4xl font-semibold tracking-tight">What should the video say?</h1>
+      <form
+        className="mt-8 flex flex-col gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        <label className="flex flex-col gap-2">
+          <span className="text-[14px] font-medium text-text-med">Brief or script</span>
+          <textarea
+            value={brief}
+            onChange={(e) => setBrief(e.target.value)}
+            rows={6}
+            placeholder='e.g. "A 12s explainer of how HyperFrames renders HTML motion graphics to MP4 — headless Chrome, GSAP timeline, FFmpeg. Curious, crisp."'
+            aria-label="Brief or script"
+            className="resize-y rounded-card border border-border-subtle bg-surface-1 p-4 text-[15px] leading-relaxed outline-none placeholder:text-text-low focus:border-accent"
+          />
+          <span className="text-right text-[13px] tabular-nums text-text-low">
+            {brief.length} chars {brief.length > 0 && brief.length < 10 ? "· min 10" : ""}
+          </span>
+        </label>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-2">
+            <span className="text-[14px] font-medium text-text-med">Target duration (s)</span>
+            <input
+              type="number"
+              min={8}
+              max={90}
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              aria-label="Target duration in seconds"
+              className="min-h-[44px] rounded-ctl border border-border-subtle bg-surface-1 px-3 text-[15px] outline-none focus:border-accent"
+            />
+          </label>
+          <label className="flex flex-col gap-2">
+            <span className="text-[14px] font-medium text-text-med">Tone (optional)</span>
+            <input
+              value={tone}
+              onChange={(e) => setTone(e.target.value)}
+              placeholder="curious · crisp · energetic"
+              aria-label="Tone (optional)"
+              className="min-h-[44px] rounded-ctl border border-border-subtle bg-surface-1 px-3 text-[15px] outline-none placeholder:text-text-low focus:border-accent"
+            />
+          </label>
+        </div>
+
+        {error && (
+          <p role="alert" className="rounded-card border border-danger/40 bg-danger/10 px-4 py-3 text-[14px] text-danger">
+            {error}
+          </p>
+        )}
+
+        <Button disabled={busy || brief.trim().length < 10} className="mt-2 sm:self-start sm:px-10">
+          {busy ? "Director is planning…" : "Plan the storyboard — free"}
+        </Button>
+        <p className="text-[13px] text-text-low">
+          You approve every scene before any render. Caps at 90s for now.
+        </p>
+      </form>
+    </div>
+  );
+}
+
+export default function NewVideo() {
+  return (
+    <AppShell projectTitle="New video">
+      <Suspense fallback={null}>
+        <BriefForm />
+      </Suspense>
+    </AppShell>
+  );
+}
