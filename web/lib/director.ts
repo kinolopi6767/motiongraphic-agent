@@ -50,6 +50,17 @@ const VALUES_CONTRACT = `Verb -> values contracts:
 - timeline:       {title:string, events:[{label,value?,color?}], accent?}
 - radial-gauge:   {value:number, label:string, unit?, accent?}
 
+MOTION RECIPE (optional values.recipe — pick the shot that fits the beat):
+- count-up:      "confetti" (sprint count + celebration burst — for records,
+                 launches, wins) or "roll" (odometer roll — for steady growth)
+- kinetic-title: "marker" (hand-drawn underline on the accent word — human,
+                 editorial) or "slam" (big type slams in — launch energy)
+- chart-race:    "live-moves" (bars race and re-rank — competition)
+- pipeline-flow: "routing" (data pulses through the pipe — process)
+- timeline:      "travel" (the line draws across milestones — journey)
+- radial-gauge:  "readout" (the dial fills — completion/score)
+Choose the recipe by the beat's emotion, not by default. If unsure, omit it.
+
 storyboard.json fields: title, formatArchetype (case-study|data-explainer|systems-explainer|timeline),
 scenes[] each {verb, duration, values, hook?, microhook?, tone?}.
 No filler scenes — only what the brief earns.`;

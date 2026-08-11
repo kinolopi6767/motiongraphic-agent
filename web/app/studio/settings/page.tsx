@@ -7,28 +7,14 @@ import { ModelSettings } from "@/components/model-settings";
 import { UsageSection } from "@/components/usage-section";
 import { VoiceSettings } from "@/components/voice-settings";
 
-type Tx = { kind: "debit" | "credit"; amount: number; reason: string; at: string };
-
 export default function SettingsPage() {
-  const [balance, setBalance] = useState<number | null>(null);
-  const [tx, setTx] = useState<Tx[]>([]);
   const [busy, setBusy] = useState(false);
   const [resetMsg, setResetMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/ledger")
-      .then((r) => r.json())
-      .then((d) => {
-        setBalance(d.balance);
-        setTx(d.tx ?? []);
-      })
-      .catch(() => {});
-  }, []);
 
   const resetData = async () => {
     if (
       !window.confirm(
-        "Clear ALL creation history — storyboards, jobs, brand kits and rendered MP4s? Credits and settings stay. This cannot be undone.",
+        "Clear ALL creation history — storyboards, jobs, brand kits and rendered MP4s? Settings stay. This cannot be undone.",
       )
     )
       return;
@@ -37,7 +23,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch("/api/data?confirm=1", { method: "DELETE" });
       if (!res.ok) throw new Error(String(res.status));
-      setResetMsg("All creation history cleared. Credits and settings kept.");
+      setResetMsg("All creation history cleared. Settings kept.");
     } catch {
       setResetMsg("Reset failed — check server logs.");
     } finally {
@@ -52,40 +38,6 @@ export default function SettingsPage() {
           Preferences
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Settings</h1>
-
-        <section aria-label="Credits" className="mt-8">
-          <h2 className="text-[15px] font-semibold">Credits ledger</h2>
-          <div className="mt-3 rounded-card border border-border-subtle bg-surface-1 p-5">
-            <p className="text-[14px] text-text-med">
-              Balance:{" "}
-              <span className="text-xl font-semibold tabular-nums text-text-hi">
-                {balance ?? "…"}
-              </span>{" "}
-              <span className="text-[13px] text-text-low">
-                · 1 credit per 15s of rendered video · storyboards/edits free · failures auto-refund
-              </span>
-            </p>
-            {tx.length > 0 && (
-              <ul className="mt-4 flex flex-col gap-1.5">
-                {tx.map((t, i) => (
-                  <li key={i} className="flex items-center justify-between gap-3 text-[13px]">
-                    <span
-                      className={t.kind === "credit" ? "text-ok" : "text-danger"}
-                      aria-label={t.kind}
-                    >
-                      {t.kind === "credit" ? "+" : "−"}
-                      {t.amount}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-text-med">{t.reason}</span>
-                    <span className="tabular-nums text-text-low">
-                      {new Date(t.at).toLocaleTimeString()}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
 
         <section aria-label="AI model" className="mt-8">
           <h2 className="text-[15px] font-semibold">AI model</h2>

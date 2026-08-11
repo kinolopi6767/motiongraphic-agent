@@ -246,14 +246,10 @@ try {
   }
 
   await mkdir(JOB_DIR, { recursive: true });
-  let queuedCost;
-  try {
-    queuedCost = JSON.parse(await readFile(jobFile, "utf8")).cost;
-  } catch {}
   await writeFile(
     jobFile,
     JSON.stringify(
-      { id: jobId, storyboardId: record.id, status: "queued", kind, sceneIndex, cost: queuedCost, createdAt: new Date().toISOString() },
+      { id: jobId, storyboardId: record.id, status: "queued", kind, sceneIndex, createdAt: new Date().toISOString() },
       null,
       2
     )
@@ -272,7 +268,7 @@ try {
         status: "running",
         kind,
         sceneIndex,
-        cost: queuedCost,
+       
         startedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       },
@@ -353,7 +349,6 @@ try {
   // snapshot times: 3 per scene + 1 per transition midpoint
   let t = 0;
   const ats = [];
-  const segTimes = [];
   for (const item of timeline) {
     if (item.type === "scene") {
       const open = Math.min(t + 0.8, t + item.duration - 0.2);
@@ -410,8 +405,8 @@ try {
             status: "cancelled",
             kind,
             sceneIndex,
-            cost: queuedCost,
-            refunded: true,
+           
+
             error: "cancelled by user",
             createdAt: new Date().toISOString(),
             finishedAt: new Date().toISOString(),
@@ -617,7 +612,7 @@ try {
         sfx: rmsReport.length > 0,
         voice: voiceInfo,
         seed,
-        cost: queuedCost,
+       
         createdAt: new Date().toISOString(),
         finishedAt: new Date().toISOString(),
         logFile,

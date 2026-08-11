@@ -11,7 +11,7 @@ import { SceneEditor } from "@/components/scene-editor";
 import { WhyLook } from "@/components/why-look";
 import { ValuesChips } from "@/components/values-chips";
 import { HookPicker } from "@/components/hook-picker";
-import { costFor } from "@/lib/ledger.mjs";
+
 import {
   Storyboard,
   runGuard,
@@ -157,7 +157,7 @@ export default async function StoryboardPage({
             </div>
             <div className="flex items-start gap-2">
               <CloneButton storyboardId={id} />
-              <RenderButton storyboardId={id} costEstimate={costFor(sb.total)} initialQuality={record.quality} />
+              <RenderButton storyboardId={id} initialQuality={record.quality} />
             </div>
           </div>
 
@@ -220,7 +220,6 @@ export default async function StoryboardPage({
                     <ReRenderSceneButton
                       storyboardId={id}
                       index={i}
-                      cost={costFor(s.duration)}
                       hasPreviousRender={hasRender}
                     />
                     <RewriteSceneButton storyboardId={id} index={i} />

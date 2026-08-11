@@ -17,7 +17,7 @@ export function CommandMenu() {
     { id: "projects", label: "Projects", hint: "local storyboards", href: "/studio/projects" },
     { id: "jobs", label: "Jobs", hint: "render queue", href: "/studio/jobs" },
     { id: "library", label: "Library", hint: "verbs & brand kit", href: "/studio/library" },
-    { id: "settings", label: "Settings", hint: "credits, theme, data", href: "/studio/settings" },
+    { id: "settings", label: "Settings", hint: "model, theme, data", href: "/studio/settings" },
     {
       id: "toggle-theme",
       label: "Toggle theme",

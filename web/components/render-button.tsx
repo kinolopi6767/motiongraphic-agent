@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/button";
 
@@ -13,35 +13,18 @@ const QUALITIES = [
 
 export function RenderButton({
   storyboardId,
-  costEstimate,
   initialQuality,
 }: {
   storyboardId: string;
-  costEstimate: number;
   initialQuality?: string;
 }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
-  const [balance, setBalance] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [seed, setSeed] = useState(() => Math.random().toString(36).slice(2, 8));
   const [ratios, setRatios] = useState<string[]>(["16:9"]);
   const [quality, setQuality] = useState(initialQuality ?? "max");
-
-  useEffect(() => {
-    if (!confirming) return;
-    let alive = true;
-    fetch("/api/ledger")
-      .then((r) => r.json())
-      .then((d) => {
-        if (alive) setBalance(d.balance);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [confirming]);
 
   const start = async () => {
     setBusy(true);
@@ -52,10 +35,6 @@ export function RenderButton({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ storyboardId, seed, ratios, quality }),
       });
-      if (res.status === 402) {
-        const d = await res.json();
-        throw new Error(d.error ?? "insufficient credits");
-      }
       if (!res.ok) {
         const d = await res.json();
         throw new Error(d.error ?? `render failed (${res.status})`);
@@ -69,12 +48,9 @@ export function RenderButton({
     }
   };
 
-  const insufficient = balance !== null && balance < costEstimate * ratios.length;
-  const totalCost = costEstimate * ratios.length;
-
   return (
     <div className="flex flex-col items-end gap-2">
-      <Button onClick={() => setConfirming(true)}>Render — {costEstimate} cr</Button>
+      <Button onClick={() => setConfirming(true)}>Render</Button>
       {confirming && (
         <div
           role="dialog"
@@ -89,15 +65,8 @@ export function RenderButton({
           >
             <h2 className="text-[17px] font-semibold">Start render?</h2>
             <p className="mt-2 text-[14px] leading-relaxed text-text-med">
-              This job costs{" "}
-              <span className="font-semibold text-text-hi">{totalCost} credits</span> (1 credit per
-              15s of video per ratio).{" "}
-              {balance !== null && (
-                <>
-                  Balance: <span className="font-semibold tabular-nums">{balance}</span>.
-                </>
-              )}{" "}
-              Failed renders auto-refund.
+              Every scene renders as its own segment with cinematic transitions between them, then
+              the film-finishing pass (grain · vignette · grade) is applied.
             </p>
             <fieldset className="mt-3">
               <legend className="text-[12px] font-medium text-text-low">Ratios</legend>
@@ -156,9 +125,6 @@ export function RenderButton({
                 ))}
               </div>
             </fieldset>
-            <div className="mt-2 text-[13px] text-text-med">
-              <span className="font-medium text-text-hi">Free:</span> storyboards, edits, snapshots.
-            </div>
             <div className="mt-3 flex items-center gap-2 rounded-ctl border border-border-subtle bg-surface-2 px-3 py-2">
               <span className="text-[12px] text-text-low">Seed family</span>
               <span className="text-[13px] font-semibold tabular-nums">{seed}</span>
@@ -166,21 +132,12 @@ export function RenderButton({
                 type="button"
                 onClick={() => setSeed(Math.random().toString(36).slice(2, 8))}
                 aria-label="Roll a new seed family"
-                title="Same seed = identical render; a new seed is a variation (PLAN variation engine)."
+                title="Same seed = identical render; a new seed is a variation."
                 className="ml-auto rounded-ctl border border-border-subtle px-2 py-0.5 text-[12px] text-text-med transition-colors hover:border-accent hover:text-accent-strong"
               >
                 re-roll
               </button>
             </div>
-            <p className="mt-2 text-[12px] text-text-low">
-              Same seed → bit-identical output. New seed → a seeded variation of the same
-              storyboard.
-            </p>
-            {insufficient && (
-              <p role="alert" className="mt-3 rounded-ctl border border-danger/40 bg-danger/10 px-3 py-2 text-[13px] text-danger">
-                Not enough credits for this render.
-              </p>
-            )}
             {error && (
               <p role="alert" className="mt-3 rounded-ctl border border-danger/40 bg-danger/10 px-3 py-2 text-[13px] text-danger">
                 {error}
@@ -190,7 +147,7 @@ export function RenderButton({
               <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
                 Cancel
               </Button>
-              <Button size="sm" onClick={start} disabled={busy || insufficient || ratios.length === 0}>
+              <Button size="sm" onClick={start} disabled={busy || ratios.length === 0}>
                 {busy ? "Queuing…" : "Confirm & queue"}
               </Button>
             </div>

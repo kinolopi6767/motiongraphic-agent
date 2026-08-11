@@ -26,6 +26,7 @@
       #orb1 { width: 880px; height: 880px; left: -200px; top: -280px; }
       #orb2 { width: 700px; height: 700px; right: -160px; top: 40px; }
       #orb3 { width: 620px; height: 620px; left: 30%; bottom: -240px; }
+      #stage { position: absolute; inset: 0; }
       #value {
         position: absolute; display: flex; align-items: baseline; gap: 16px;
         top: 300px; left: 200px; right: 200px;
@@ -36,21 +37,23 @@
       #prefix, #suffix { font-size: 96px; font-weight: 700; }
       #suffix { color: var(--accent); }
       #label {
-        position: absolute; top: 640px; left: 210px; right: 200px;
+        position: absolute; top: 660px; left: 210px; right: 200px;
         font-size: 40px; letter-spacing: 0.14em; text-transform: uppercase;
-        overflow: hidden;
+        overflow: hidden; will-change: letter-spacing, opacity, transform;
       }
-      #label span { display: inline-block; will-change: transform; }
-      #rule { position: absolute; top: 596px; left: 210px; width: 240px; height: 6px; border-radius: 999px; transform-origin: 0 50%; }
-      #shimmer {
-        position: absolute; top: 0; left: 0; height: 100%; width: 60%;
-        background: linear-gradient(100deg, transparent, rgba(255,255,255,0.5), transparent);
-        transform: translateX(-120%);
+      #label span { display: inline-block; }
+      #rule { position: absolute; top: 620px; left: 210px; width: 220px; height: 6px; border-radius: 999px; transform-origin: 0 50%; }
+      #ring {
+        position: absolute; left: 50%; top: 470px; width: 220px; height: 220px;
+        margin: -110px 0 0 -110px; border-radius: 50%; border: 6px solid var(--accent, #4f8cff);
+        opacity: 0; transform: scale(0.35);
       }
       #halo {
         position: absolute; top: 260px; left: 50%; width: 620px; height: 620px;
         transform: translateX(-50%); filter: blur(90px); opacity: 0; pointer-events: none;
       }
+      #confetti { position: absolute; inset: 0; pointer-events: none; }
+      .conf { position: absolute; will-change: transform, opacity; border-radius: 2px; }
       #maxlayer { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
     </style>
   </head>
@@ -63,17 +66,19 @@
           <div class="orb" id="orb3"></div>
         </div>
         <div id="halo"></div>
+        <div id="stage">
+          <div id="value">
+            <span id="prefix"></span>
+            <span id="number">0</span>
+            <span id="suffix"></span>
+          </div>
+          <div id="ring"></div>
+          <div id="rule"></div>
+          <div id="label"></div>
+        </div>
+        <div id="confetti"></div>
       </div>
       <div id="maxlayer"></div>
-      <div class="clip" data-start="0" data-duration="7.6" data-track-index="1">
-        <div id="value">
-          <span id="prefix"></span>
-          <span id="number">0</span>
-          <span id="suffix"></span>
-        </div>
-        <div id="rule"><div id="shimmer"></div></div>
-        <div id="label"></div>
-      </div>
     </div>
     <script>
       const v = window.__hyperframes.getVariables();
@@ -91,15 +96,14 @@
       };
 
       document.documentElement.style.background = BG;
-      document.getElementById("suffix").style.color = ACCENT;
-      document.getElementById("rule").style.background = ACCENT;
-      document.getElementById("halo").style.background = rgba(ACCENT, 0.6);
+      document.documentElement.style.setProperty("--accent", ACCENT);
       document.getElementById("prefix").textContent = v.prefix || "";
       document.getElementById("suffix").textContent = v.suffix || "";
       document.getElementById("prefix").style.color = TEXT;
       document.getElementById("suffix").style.color = ACCENT;
       document.getElementById("number").style.color = TEXT;
-      document.getElementById("label").style.color = TEXT;
+      document.getElementById("rule").style.background = ACCENT;
+      document.getElementById("halo").style.background = rgba(ACCENT, 0.6);
       for (const [sel, a] of [["#orb1", 0.3], ["#orb2", 0.24], ["#orb3", 0.2]]) {
         document.querySelector(sel).style.background = rgba(ACCENT, a);
       }
@@ -114,68 +118,113 @@
         labelEl.appendChild(s);
         labelSpans.push(s);
       }
+      labelEl.style.color = TEXT;
       const fmt = (n) => {
         if (v.display) return v.display;
         return Math.round(n).toLocaleString("en-US");
       };
       const numEl = document.getElementById("number");
 
+      /* ---- RECIPE: counter-confetti (shotcraft-style) ----
+         sprint count easeOutQuart 0.08-0.56 · confetti BURSTS at 0.52
+         (a beat BEFORE the number lands — the anticipation is the soul)
+         impact ring 0.545 · label tracking tightens 0.62 */
+      const T_IN = 0.08, T_LAND = 0.56, T_BURST = 0.52, T_RING = 0.545, T_LABEL = 0.62;
+
+      // 52 deterministic confetti pieces (seeded LCG — no Math.random at runtime)
+      const confettiHost = document.getElementById("confetti");
+      let seed = 9876;
+      const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+      const CONFETTI = 52;
+      const pieces = [];
+      const PALETTE = [ACCENT, "#F2F4F8", "#F59E0B", "#10B981", "#EF4444", "#E879F9"];
+      for (let i = 0; i < CONFETTI; i++) {
+        const c = document.createElement("div");
+        c.className = "conf";
+        const w = 12 + rnd() * 16, h = 6 + rnd() * 8;
+        c.style.width = `${w}px`;
+        c.style.height = `${h}px`;
+        c.style.background = PALETTE[Math.floor(rnd() * PALETTE.length)];
+        c.style.opacity = 0;
+        const side = i % 2 === 0 ? -1 : 1;
+        c.style.left = side < 0 ? `${-30 - rnd() * 220}px` : `${1950 + rnd() * 220}px`;
+        c.style.top = `${360 + rnd() * 300}px`;
+        confettiHost.appendChild(c);
+        pieces.push({ el: c, side, vx: (150 + rnd() * 300) * side, vy: -(230 + rnd() * 220), g: 900 + rnd() * 520, rot: (rnd() - 0.5) * 1500, delay: rnd() * 0.06 });
+      }
+
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
 
-      // ---------- 1 · ENTRANCE ----------
-      tl.from("#value", { autoAlpha: 0, y: 40, duration: 0.7, ease: "power3.out" }, t0 + 0.1);
-      tl.from("#rule", { scaleX: 0, duration: 0.9, ease: "expo.out" }, t0 + 0.35);
-      tl.from(labelSpans, { yPercent: 110, duration: 0.6, stagger: 0.03, ease: "expo.out" }, t0 + 0.5);
-      tl.from("#suffix, #prefix", { autoAlpha: 0, y: 16, duration: 0.5, ease: "power2.out" }, t0 + 0.6);
+      // ---------- ENTRANCE ----------
+      tl.from("#value", { autoAlpha: 0, y: 40, duration: 0.5, ease: "power3.out" }, t0 + 0.05);
+      tl.from("#rule", { scaleX: 0, duration: 0.8, ease: "expo.out" }, t0 + 0.15);
 
-      // ---------- 2 · THE COUNT (10% → 55%) ----------
+      // ---------- THE SPRINT (0.08 → 0.56) ----------
+      // number scale: 0.2→1.3 charge-in (outCubic), settles 1.3→1 with a light back-out
+      tl.fromTo(numEl, { scale: 0.2, autoAlpha: 0.4 }, { scale: 1.3, autoAlpha: 1, duration: 0.5, ease: "outCubic" }, t0 + T_IN);
       const countObj = { n: 0 };
       tl.to(countObj, {
-        n: target, duration: D * 0.45, ease: "power2.out",
+        n: target, duration: (T_LAND - T_IN) * D, ease: "quart.out",
         onUpdate: () => { numEl.textContent = fmt(countObj.n); },
-      }, t0 + D * 0.1);
-      // wobble while counting
-      tl.to("#value", { scale: 1.03, duration: 0.4, ease: "sine.inOut", repeat: 7, yoyo: true }, t0 + D * 0.12);
+      }, t0 + T_IN);
+      tl.to(numEl, { scale: 1, duration: 0.45, ease: "back.out(1.6)" }, t0 + T_LAND);
 
-      // ---------- 3 · AMBIENT (55% → 70%) — always moving ----------
-      tl.to("#value", { y: 10, duration: 2.8, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + D * 0.55);
-      tl.to("#shimmer", { x: "520%", duration: 2.2, ease: "power1.inOut", repeat: -1 }, t0 + D * 0.55);
-      tl.to("#label", { opacity: 0.6, duration: 1.8, repeat: -1, yoyo: true, ease: "sine.inOut" }, t0 + D * 0.56);
+      // ---------- ANTICIPATION: confetti bursts BEFORE the number lands ----------
+      const BURST = t0 + T_BURST * D;
+      pieces.forEach((p, i) => {
+        tl.fromTo(p.el,
+          { opacity: 0, x: 0, y: 0, rotation: 0 },
+          {
+            opacity: 0.95, duration: 0.7, ease: "power2.out",
+            x: p.vx * 0.55, y: p.vy * 0.55, rotation: p.rot * 0.5,
+          }, BURST + p.delay);
+        tl.to(p.el,
+          {
+            y: `+=${(p.g * 0.7).toFixed(0)}`, duration: 0.55, ease: "power1.in",
+            x: p.vx * 0.45, rotation: p.rot, opacity: 0.5,
+          }, BURST + p.delay + 0.62);
+        tl.to(p.el, { opacity: 0, duration: 0.35 }, BURST + p.delay + 1.15);
+      });
+
+      // ---------- IMPACT RING at the landing beat ----------
+      tl.fromTo("#ring", { opacity: 0.85, scale: 0.35 }, { opacity: 0, scale: 2.95, duration: 0.8, ease: "power2.out" }, t0 + T_RING * D);
+      tl.fromTo("#halo", { opacity: 0.8 }, { opacity: 0, duration: 0.9, ease: "power2.out" }, t0 + T_RING * D);
+
+      // ---------- LABEL: tracking tighten (11px → 5px) = the "stamp" ----------
+      tl.fromTo("#label", { autoAlpha: 0, y: 22, letterSpacing: "0.24em" }, { autoAlpha: 1, y: 0, letterSpacing: "0.14em", duration: 0.55, ease: "power2.out" }, t0 + T_LABEL * D);
+      tl.from(labelSpans, { yPercent: 110, duration: 0.45, stagger: 0.02, ease: "expo.out" }, t0 + T_LABEL * D + 0.05);
+
+      // ---------- AMBIENT (after landing) ----------
+      const amb = t0 + D * 0.68;
+      tl.to("#value", { y: 10, duration: 2.8, ease: "sine.inOut", repeat: -1, yoyo: true }, amb);
+      tl.to("#rule", { opacity: 0.5, duration: 1.8, repeat: -1, yoyo: true, ease: "sine.inOut" }, amb);
       tl.to("#orb1", { x: 200, y: 160, scale: 1.25, duration: 6.0, ease: "sine.inOut", repeat: -1, yoyo: true }, t0);
       tl.to("#orb2", { x: -160, y: -120, scale: 1.2, duration: 6.8, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 0.5);
       tl.to("#orb3", { x: 140, y: -180, scale: 1.28, duration: 7.4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + 1.0);
 
-      // ---------- 4 · EMPHASIS (70% → 82%) ----------
-      const beat = t0 + D * 0.7;
-      tl.to("#value", { scale: 1.07, duration: 0.45, ease: "power2.out" }, beat);
-      tl.to("#value", { scale: 1, duration: 1.0, ease: "power4.inOut" }, beat + 0.45);
-      tl.fromTo("#halo", { opacity: 0.75 }, { opacity: 0, duration: 1.1, ease: "power2.out" }, beat);
-      tl.fromTo("#rule", { scaleX: 1 }, { scaleX: 1.15, transformOrigin: "0 50%", duration: 0.5, ease: "power2.out" }, beat);
-      tl.to("#rule", { scaleX: 1, duration: 0.7, ease: "power3.inOut" }, beat + 0.5);
-
-      // ---------- 5 · EXIT (86% → 100%) ----------
-      const ex = t0 + D * 0.86;
-      tl.to("#value", { y: -60, autoAlpha: 0, duration: 0.65, ease: "power2.in" }, ex);
-      tl.to("#label", { y: -30, autoAlpha: 0, duration: 0.55, ease: "power2.in" }, ex + 0.08);
+      // ---------- EXIT ----------
+      const ex = t0 + D * 0.9;
+      tl.to("#value", { y: -60, autoAlpha: 0, duration: 0.6, ease: "power2.in" }, ex);
+      tl.to("#label", { y: -30, autoAlpha: 0, duration: 0.5, ease: "power2.in" }, ex + 0.08);
       tl.to("#rule", { autoAlpha: 0, duration: 0.4 }, ex + 0.05);
 
-      // camera drift + 3D depth rig
-      tl.fromTo("#camera", { scale: 1.0 }, { scale: 1.06, duration: D, ease: "sine.inOut" }, t0);
+      // camera drift + depth rig
+      tl.fromTo("#camera", { scale: 1.0 }, { scale: 1.05, duration: D, ease: "sine.inOut" }, t0);
       tl.fromTo("#camera", { rotationX: -0.7, rotationY: 1.2 }, { rotationX: 0.8, rotationY: -1.2, duration: D, ease: "sine.inOut", repeat: -1, yoyo: true }, t0);
 
-      // ---------- MAX QUALITY · extra ambient particle layer ----------
+      // ---------- MAX QUALITY · particles ----------
       if (v.maxMotion) {
         const layer = document.getElementById("maxlayer");
         layer.style.opacity = 1;
         let s = 1122;
-        const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+        const rnd2 = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
         for (let i = 0; i < 24; i++) {
           const p = document.createElement("div");
-          const size = 5 + rnd() * 9;
-          p.style.cssText = `position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:${rgba(ACCENT, 0.5)};filter:blur(${(2 + rnd() * 5).toFixed(1)}px);left:${(rnd() * 100).toFixed(1)}%;top:${(rnd() * 100).toFixed(1)}%`;
+          const size = 5 + rnd2() * 9;
+          p.style.cssText = `position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:${rgba(ACCENT, 0.5)};filter:blur(${(2 + rnd2() * 5).toFixed(1)}px);left:${(rnd2() * 100).toFixed(1)}%;top:${(rnd2() * 100).toFixed(1)}%`;
           layer.appendChild(p);
-          tl.to(p, { y: (rnd() - 0.5) * 220, x: (rnd() - 0.5) * 140, opacity: 0.12 + rnd() * 0.32, duration: 3 + rnd() * 4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + rnd() * 2);
+          tl.to(p, { y: (rnd2() - 0.5) * 220, x: (rnd2() - 0.5) * 140, opacity: 0.12 + rnd2() * 0.32, duration: 3 + rnd2() * 4, ease: "sine.inOut", repeat: -1, yoyo: true }, t0 + rnd2() * 2);
         }
       }
 

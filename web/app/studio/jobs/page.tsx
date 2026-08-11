@@ -21,8 +21,6 @@ type Job = {
   videos?: Record<string, string>;
   thumbnails?: Record<string, string>;
   ratiosList?: string[];
-  cost?: number;
-  refunded?: boolean;
   error?: string;
   logFile?: string;
   frames?: string[];
@@ -408,11 +406,6 @@ export default function JobsPage() {
                     {j.quality && (
                       <span className="rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 text-[11px] capitalize text-text-med">
                         {j.quality}
-                      </span>
-                    )}
-                    {typeof j.cost === "number" && (
-                      <span className="text-[12px] tabular-nums text-text-low">
-                        {j.cost} cr{j.refunded && " · refunded"}
                       </span>
                     )}
                   </div>

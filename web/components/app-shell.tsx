@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Button } from "@/components/button";
-import { CreditsPill } from "@/components/credits-pill";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CommandMenu } from "@/components/command-menu";
 
@@ -39,7 +38,7 @@ export function AppShell({
           ))}
         </nav>
         <div className="mt-auto flex flex-col gap-2">
-          <CreditsPill />
+
           <Button variant="outline" className="w-full">
             <Link href="/studio/settings" className="flex w-full items-center justify-center">
               Settings

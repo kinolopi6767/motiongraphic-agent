@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { costFor, credit, debit } from "@/lib/ledger.mjs";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,8 +24,6 @@ const JOB_RUNNER = [process.cwd(), "lib", ["render-job", ".", "mjs"].join("")].j
   videos?: Record<string, string>;
   thumbnails?: Record<string, string>;
   ratioRuns?: Record<string, string>;
-  cost?: number;
-  refunded?: boolean;
   error?: string;
   videoPath?: string;
   logFile?: string;
@@ -119,17 +116,6 @@ export async function POST(req: NextRequest) {
     ? (body.quality as (typeof QUALITIES)[number])
     : (record.quality as (typeof QUALITIES)[number] | undefined) ?? "max";
 
-  // Cost gate (Flow D): deduct BEFORE enqueue, refund on failure (swept in GET).
-  const cost = costFor(billedSeconds) * ratios.length;
-  try {
-    await debit(cost, `job-queue:${storyboardId}${sceneIndex !== undefined ? `:scene${sceneIndex}` : ""}`);
-  } catch (e) {
-    const insufficient =
-      e instanceof Error && "code" in e && (e as Error & { code?: string }).code === "INSUFFICIENT";
-    if (insufficient) return NextResponse.json({ error: e.message }, { status: 402 });
-    throw e;
-  }
-
   await mkdir(JOB_STORE, { recursive: true });
   const jobId = `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const jobFile = join(JOB_STORE, `${jobId}.json`);
@@ -145,37 +131,28 @@ export async function POST(req: NextRequest) {
     sceneIndex,
     ratios,
     quality,
-    cost,
     seed: finalSeed,
     createdAt: new Date().toISOString(),
   };
   await writeFile(jobFile, JSON.stringify(job, null, 2));
 
-  const child = spawn(
-    "node",
-    [JOB_RUNNER, recordPath, jobId, jobFile, "", finalSeed, kind, sceneIndex !== undefined ? String(sceneIndex) : "", ratios.join(","), quality],
-    {
-      stdio: "ignore",
-      detached: true,
-    }
-  );
+  // Worker must survive the web server: own session (setsid) so process-group
+  // kills on the Next process can't take the render pipeline with it.
+  const runner = process.platform === "linux" ? "setsid" : "node";
+  const runnerArgs =
+    process.platform === "linux"
+      ? ["node", JOB_RUNNER, recordPath, jobId, jobFile, "", finalSeed, kind, sceneIndex !== undefined ? String(sceneIndex) : "", ratios.join(","), quality]
+      : [JOB_RUNNER, recordPath, jobId, jobFile, "", finalSeed, kind, sceneIndex !== undefined ? String(sceneIndex) : "", ratios.join(","), quality];
+  const child = spawn(runner, runnerArgs, {
+    stdio: "ignore",
+    detached: true,
+  });
   child.unref();
 
-  return NextResponse.json({ id: jobId, status: "queued", cost, kind, sceneIndex, ratios, quality }, { status: 202 });
+  return NextResponse.json({ id: jobId, status: "queued", kind, sceneIndex, ratios, quality }, { status: 202 });
 }
 
 export async function GET() {
   const jobs = await listJobs();
-  // Refund sweep: failed/cancelled jobs get their credits back exactly once.
-  let swept = 0;
-  for (const j of jobs) {
-    if ((j.status === "failed" || j.status === "cancelled") && !j.refunded && j.cost) {
-      await credit(j.cost, `refund:${j.id}`);
-      j.refunded = true;
-      await writeFile(join(JOB_STORE, `${j.id}.json`), JSON.stringify(j, null, 2));
-      swept++;
-    }
-  }
-  if (swept) jobs.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-  return NextResponse.json({ jobs, refunded: swept });
+  return NextResponse.json({ jobs });
 }

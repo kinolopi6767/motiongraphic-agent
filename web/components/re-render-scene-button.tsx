@@ -12,12 +12,10 @@ import { Button } from "@/components/button";
 export function ReRenderSceneButton({
   storyboardId,
   index,
-  cost,
   hasPreviousRender,
 }: {
   storyboardId: string;
   index: number;
-  cost: number;
   hasPreviousRender: boolean;
 }) {
   const router = useRouter();
@@ -48,7 +46,7 @@ export function ReRenderSceneButton({
   return (
     <div className="flex flex-col items-start gap-1">
       <Button variant="ghost" size="sm" onClick={queue} disabled={busy} title="Re-renders only this scene's segment — the rest stays cached">
-        {busy ? "Queuing…" : `Re-render scene — ${cost} cr`}
+        {busy ? "Queuing…" : "Re-render scene"}
       </Button>
       {error && <span className="text-[12px] text-danger">{error}</span>}
     </div>
