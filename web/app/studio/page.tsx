@@ -108,8 +108,91 @@ function QualityPicker({
   );
 }
 
-/** Quick model picker for project creation — auto-saves (shared with Settings). */
-function ModelQuickPick() {
+type RefProfile = {
+  palette: string[];
+  typography: string;
+  composition: string;
+  motionLanguage: string[];
+  transitions: string;
+  pacing: string;
+  sceneArchetypes: string[];
+  summary: string;
+};
+
+/** Upload a reference video → vision analysis → motion profile (optional). */
+function ReferenceUpload({
+  onChange,
+}: {
+  onChange: (id: string | null, profile: RefProfile | null) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<RefProfile | null>(null);
+  const [id, setId] = useState<string | null>(null);
+
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("video", file);
+      const res = await fetch("/api/reference", { method: "POST", body: fd });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "analysis failed");
+      setId(d.id);
+      setProfile(d.profile);
+      onChange(d.id, d.profile);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "analysis failed");
+      onChange(null, null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2 sm:col-span-2">
+      <span className="text-[14px] font-medium text-text-med">Reference video (optional)</span>
+      <label className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded-ctl border border-dashed border-border-subtle bg-surface-1 px-3 text-[13px] text-text-med transition-colors hover:border-accent">
+        <input
+          type="file"
+          accept="video/*"
+          onChange={(e) => pick(e.target.files?.[0])}
+          className="sr-only"
+        />
+        {busy
+          ? "Analyzing frames with the vision model…"
+          : profile
+            ? `Reference loaded — ${id}`
+            : "Upload a video you love — we extract its style (palette, typography, motion)"}
+      </label>
+      {profile && (
+        <div className="rounded-ctl border border-border-subtle bg-surface-2 p-3">
+          <div className="flex items-center gap-1.5" aria-label="Extracted palette">
+            {profile.palette.map((c) => (
+              <span key={c} title={c} className="size-6 rounded-md border border-border-subtle" style={{ background: c }} />
+            ))}
+            <span className="ml-2 text-[12px] text-text-low">extracted palette</span>
+          </div>
+          <p className="mt-2 text-[13px] leading-snug text-text-med">{profile.summary}</p>
+          {profile.motionLanguage.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {profile.motionLanguage.map((m) => (
+                <span key={m} className="rounded-full border border-border-subtle px-2 py-0.5 text-[11px] text-text-low">
+                  {m}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {error && <p className="text-[13px] text-danger">{error}</p>}
+    </div>
+  );
+}
+
+/** Quick model picker for project creation — auto-saves (shared with Settings). */function ModelQuickPick() {
   const [provider, setProvider] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
   useEffect(() => {
@@ -222,6 +305,7 @@ function BriefForm() {
   const [brandKitId, setBrandKitId] = useState<string | null>(search.get("kit"));
   const [style, setStyle] = useState("studio-black");
   const [quality, setQuality] = useState("max");
+  const [referenceId, setReferenceId] = useState<string | null>(null);
   const [kits, setKits] = useState<Kit[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -247,9 +331,10 @@ function BriefForm() {
     }
     setBusy(true);
     setError(null);
-    // The director can take a while; never leave the button spinning silently.
+    // The director runs 2 LLM passes (beat breakdown + scene plan) — give
+    // large scripts room; only abort on something truly stuck.
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 100_000);
+    const timer = setTimeout(() => ctrl.abort(), 240_000);
     try {
       const res = await fetch("/api/brief", {
         method: "POST",
@@ -261,6 +346,7 @@ function BriefForm() {
           ratio,
           style,
           quality,
+          referenceId: referenceId ?? undefined,
           brandKitId: brandKitId ?? undefined,
         }),
         signal: ctrl.signal,
@@ -374,6 +460,7 @@ function BriefForm() {
           <KitPicker selected={brandKitId} onChange={setBrandKitId} kits={kits} />
           <StylePicker selected={style} onChange={setStyle} />
           <QualityPicker selected={quality} onChange={setQuality} />
+          <ReferenceUpload onChange={(id) => setReferenceId(id)} />
           <ModelQuickPick />
         </div>
 

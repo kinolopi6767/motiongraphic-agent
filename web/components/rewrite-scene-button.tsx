@@ -28,7 +28,7 @@ export function RewriteSceneButton({
     setError(null);
     setSaved(false);
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 100_000);
+    const timer = setTimeout(() => ctrl.abort(), 240_000);
     try {
       const res = await fetch(`/api/storyboards/${storyboardId}/scenes/${index}/recreate`, {
         method: "POST",

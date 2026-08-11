@@ -95,7 +95,7 @@ function varietyErrors(scenes: Storyboard["scenes"]) {
 /** Runs the director agent with one validation retry. Returns usage too. */
 export async function runDirector(
   brief: string,
-  opts?: { duration?: number; tone?: string; ratio?: string; style?: string; brandKit?: { name: string; colors: string[]; vibe: string } },
+  opts?: { duration?: number; tone?: string; ratio?: string; style?: string; reference?: string; brandKit?: { name: string; colors: string[]; vibe: string } },
 ): Promise<{ storyboard: Storyboard; usage: { model: string; prompt: number; completion: number; total: number }; beats: ScriptBeat[] }> {
   const extras = [
     opts?.duration ? `Target duration: ${opts.duration}s.` : "",
@@ -103,6 +103,9 @@ export async function runDirector(
     opts?.ratio ? `Format ratio: ${opts.ratio}.` : "",
     opts?.style
       ? `Visual style: ${opts.style}. Background and text colors are injected automatically — choose accent colors that fit the style's mood.`
+      : "",
+    opts?.reference
+      ? `REFERENCE VIDEO STYLE (match this look and feel — it is the client's reference):\n${opts.reference}`
       : "",
     opts?.brandKit
       ? `Brand kit "${opts.brandKit.name}" (vibe: ${opts.brandKit.vibe}): palette = ${opts.brandKit.colors.join(", ")}. Use ONLY these colors — first color is the canvas/background, the rest are accents (one dominant accent).`

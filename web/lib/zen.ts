@@ -156,3 +156,50 @@ export async function chatJsonU<T>(
 export async function chatJson<T>(system: string, prompt: string, temperature = 0.4): Promise<T> {
   return (await chatJsonU<T>(system, prompt, temperature)).json;
 }
+
+/**
+ * Vision call — frames as images, JSON out. Always uses mimo-v2.5-free (the
+ * documented vision line; deepseek-v4-flash-free is text-only on the gateway).
+ */
+export async function chatVision<T>(
+  system: string,
+  prompt: string,
+  frames: { data: Buffer; mime: string }[],
+): Promise<{ json: T; usage: Usage }> {
+  const key = await authKey();
+  const res = await fetch(`${ZEN_URL}/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model: "mimo-v2.5-free",
+      temperature: 0.3,
+      messages: [
+        { role: "system", content: system },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            ...frames.map((f) => ({
+              type: "image_url" as const,
+              image_url: { url: `data:${f.mime};base64,${f.data.toString("base64")}` },
+            })),
+          ],
+        },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`Vision ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const data = await res.json();
+  const text: string = data.choices?.[0]?.message?.content ?? "";
+  const json = JSON.parse(text.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim()) as T;
+  const u = data.usage ?? {};
+  return {
+    json,
+    usage: {
+      model: "mimo-v2.5-free",
+      prompt: u.prompt_tokens ?? 0,
+      completion: u.completion_tokens ?? 0,
+      total: (u.prompt_tokens ?? 0) + (u.completion_tokens ?? 0),
+    },
+  };
+}

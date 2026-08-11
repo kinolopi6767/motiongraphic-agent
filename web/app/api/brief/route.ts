@@ -6,9 +6,10 @@ import { Storyboard } from "@/lib/storyboard";
 import { readKit } from "@/lib/brand-kits";
 import { readConfig } from "@/lib/config";
 import { STYLES, STYLE_IDS, QUALITY_IDS } from "@/lib/storyboard";
+import { profileToPrompt, readReference } from "@/lib/motion-profile";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const STORE = join(process.cwd(), "data", "storyboards");
 
@@ -19,6 +20,7 @@ type BriefBody = {
   ratio?: string;
   style?: string;
   quality?: string;
+  referenceId?: string;
   brandKitId?: string;
 };
 
@@ -36,6 +38,17 @@ export async function POST(req: NextRequest) {
   if (!brief || brief.length < 10) {
     return NextResponse.json({ error: "brief must be at least 10 characters" }, { status: 400 });
   }
+  // ~150 wpm VO pacing caps a video at 90s ≈ 340 words. Be honest up front.
+  const words = brief.split(/\s+/).filter(Boolean).length;
+  if (words > 340) {
+    const minutes = (words / 150).toFixed(1);
+    return NextResponse.json(
+      {
+        error: `Script is too long: ${words} words ≈ ${minutes} minutes of narration (max 90s ≈ 340 words). Cut it down, or split it into parts — one video per part.`,
+      },
+      { status: 400 },
+    );
+  }
   if (body.duration !== undefined && (body.duration < 8 || body.duration > 90)) {
     return NextResponse.json({ error: "duration must be 8-90s" }, { status: 400 });
   }
@@ -52,17 +65,25 @@ export async function POST(req: NextRequest) {
     if (body.brandKitId && !kit) {
       return NextResponse.json({ error: "brand kit not found" }, { status: 404 });
     }
+    const reference = body.referenceId ? await readReference(body.referenceId) : null;
+    if (body.referenceId && !reference) {
+      return NextResponse.json({ error: "reference not found — re-upload the video" }, { status: 404 });
+    }
     const { storyboard, usage, beats } = await runDirector(brief, {
       ...body,
       ratio,
       style,
+      reference: reference ? profileToPrompt(reference) : undefined,
       brandKit: kit ? { name: kit.name, colors: kit.colors, vibe: kit.vibe } : undefined,
     });
     // Style is baked deterministically into every scene's values (templates read
-    // values.bg / values.textColor) — no LLM dependency for the look.
+    // values.bg / values.textColor) — no LLM dependency for the look. A reference
+    // video's extracted palette overrides the preset when present.
+    const bg = reference?.palette?.[0] ?? styleDef.bg;
+    const text = reference?.palette?.[1] ?? styleDef.text;
     for (const scene of storyboard.scenes) {
-      scene.values.bg = styleDef.bg;
-      scene.values.textColor = styleDef.text;
+      scene.values.bg = bg;
+      scene.values.textColor = text;
     }
     const id = `sb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -98,6 +119,8 @@ export async function POST(req: NextRequest) {
           voiceTier,
           usage: usageLog,
           beats,
+          referenceId: body.referenceId,
+          reference: reference ? profileToPrompt(reference) : undefined,
           storyboard,
           createdAt: new Date().toISOString(),
         },
