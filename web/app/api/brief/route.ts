@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
   const quality = QUALITY_IDS.includes(body.quality as never) ? (body.quality as (typeof QUALITY_IDS)[number]) : "max";
 
   try {
+    const startedAt = Date.now();
     const kit = body.brandKitId ? await readKit(body.brandKitId) : null;
     if (body.brandKitId && !kit) {
       return NextResponse.json({ error: "brand kit not found" }, { status: 404 });
@@ -69,6 +70,13 @@ export async function POST(req: NextRequest) {
     if (body.referenceId && !reference) {
       return NextResponse.json({ error: "reference not found — re-upload the video" }, { status: 404 });
     }
+    // Voice-tier gate (PLAN §7) is independent of the storyboard — classify on
+    // the brief in parallel with the director instead of serially after it.
+    const cfg = await readConfig();
+    const tierP =
+      cfg.voice.enabled && cfg.voice.apiKey
+        ? classifyVoiceTier(brief).catch(() => ({ tier: "AI-OK" as const, usage: { model: "n/a", prompt: 0, completion: 0, total: 0 } }))
+        : Promise.resolve({ tier: undefined as string | undefined, usage: undefined as { model: string; prompt: number; completion: number; total: number } | undefined });
     const { storyboard, usage, beats } = await runDirector(brief, {
       ...body,
       ratio,
@@ -88,22 +96,18 @@ export async function POST(req: NextRequest) {
     const id = `sb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
     // Voice-tier gate (PLAN §7): classified per video — AI-OK / Hybrid / Human-only.
-    let voiceTier: string | undefined;
-    const cfg = await readConfig();
+    const { tier: voiceTier, usage: tierUsage } = await tierP;
     const usageLog: { at: string; kind: string; model: string; prompt: number; completion: number; total: number }[] = [
       { at: new Date().toISOString(), kind: "director", ...usage },
     ];
-    if (cfg.voice.enabled && cfg.voice.apiKey) {
-      try {
-        const t = await classifyVoiceTier(brief, storyboard);
-        voiceTier = t.tier;
-        usageLog.push({ at: new Date().toISOString(), kind: "voice-tier", ...t.usage });
-      } catch {
-        voiceTier = "AI-OK";
-      }
+    if (voiceTier && tierUsage) {
+      usageLog.push({ at: new Date().toISOString(), kind: "voice-tier", ...tierUsage });
     }
 
     await mkdir(STORE, { recursive: true });
+    console.log(
+      `[brief] ${id} planned in ${((Date.now() - startedAt) / 1000).toFixed(0)}s — ${storyboard.scenes.length} scenes, ${storyboard.total}s, voice tier ${voiceTier ?? "none"}`,
+    );
     await writeFile(
       join(STORE, `${id}.json`),
       JSON.stringify(
@@ -144,7 +148,6 @@ const TIERS = ["AI-OK", "Hybrid", "Human-only"] as const;
  */
 async function classifyVoiceTier(
   brief: string,
-  storyboard: unknown,
 ): Promise<{ tier: (typeof TIERS)[number]; usage: { model: string; prompt: number; completion: number; total: number } }> {
   const { chatJsonU } = await import("@/lib/zen");
   const { json: d, usage } = await chatJsonU<{ tier?: string }>(
@@ -154,7 +157,7 @@ Classify the video by trust threshold & emotion load into exactly one tier:
 - Hybrid: documentary/explainer with story elements — AI body, human hook/outro.
 - Human-only: emotional, personal, or testimonial stories — never AI-narrated.
 Return ONLY valid JSON: {"tier":"..."}.`,
-    JSON.stringify({ brief, formatArchetype: (storyboard as { formatArchetype?: string })?.formatArchetype, scenes: (storyboard as { scenes?: { verb: string }[] })?.scenes?.map((s) => s.verb) }),
+    JSON.stringify({ brief }),
   );
   const tier = d?.tier;
   return {

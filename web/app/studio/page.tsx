@@ -331,10 +331,11 @@ function BriefForm() {
     }
     setBusy(true);
     setError(null);
-    // The director runs 2 LLM passes (beat breakdown + scene plan) — give
-    // large scripts room; only abort on something truly stuck.
+    // The director runs 1-2 LLM passes; the free provider can be congested for
+    // 10+ minutes per call. The server keeps working even if the browser gives
+    // up — only abort after a truly extreme wait.
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 240_000);
+    const timer = setTimeout(() => ctrl.abort(), 900_000);
     try {
       const res = await fetch("/api/brief", {
         method: "POST",
@@ -364,7 +365,7 @@ function BriefForm() {
       } else {
         setError(
           e instanceof DOMException && e.name === "AbortError"
-            ? "The director took too long — is the server still running? (start it with npm run dev)"
+            ? "That took over 15 minutes — the server is likely still working (the free LLM provider gets congested; check its console for phase logs like \"beat breakdown + scene plan done in Ns\"). Reload and retry, or wait and retry."
             : e instanceof Error
               ? e.message
               : "Something went wrong",

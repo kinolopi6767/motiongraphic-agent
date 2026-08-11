@@ -24,9 +24,23 @@ export async function runHooks(
   return { options, usage };
 }
 
-const DIRECTOR_SYSTEM = `You are the DIRECTOR AGENT of an agentic motion-graphics video engine.
-Turn a brief into a storyboard.json. Requirements:
-- Scene verbs limited to: ${VERBS.join(", ")}.
+const PLAN_SYSTEM = `You are the DIRECTOR AGENT of an agentic motion-graphics video engine.
+Turn a narration script into a full storyboard in ONE pass: break the script into
+narrative beats (the way a voice-over is segmented), then plan ONE scene per beat,
+in order (scene N covers beat N).
+
+BEAT rules:
+- Each beat is ONE spoken segment — a thought the narrator delivers in one breath,
+  5-14 words. 3 to 7 beats. Never merge two distinct facts into one beat.
+- Every beat has a kind: hook (the first attention-grab), context (setting), claim
+  (a statement), proof (a fact/statistic that backs a claim), payoff (the single
+  best insight — near the end, not last), closer (final stamp).
+- Extract EVERY concrete fact (numbers, names, percentages, years) into the beat's
+  facts array — verbatim from the script, never invented.
+- emphasis: the single word/phrase the beat hinges on (if any).
+
+SCENE rules:
+- One scene per beat, same order. Scene verbs limited to: ${VERBS.join(", ")}.
 - VARIETY RULES (non-negotiable): use at least 2 different verbs when there are
   3+ scenes, at least 3 different verbs with 4+ scenes, 4 with 6+; never use
   the same verb more than twice; never repeat a verb in adjacent scenes. Rotate
@@ -36,6 +50,9 @@ Turn a brief into a storyboard.json. Requirements:
   processes use pipeline-flow. A 4-scene video should feel like 4 different
   shows, not one show 4 times.
 - Total 8-90s, each scene 4-12s.
+- VOICE-OVER TIMING: give each scene the duration of its beat's spoken length
+  (~150 wpm), clamped to 4-12s. Scenes may breathe up to +1s for holds, but
+  never cut a beat short.
 - Retention contract: cold-open/hook energy in scene 1, value bomb at 60-70%,
   a forward-pull microhook at the end of each scene (hook/microhook fields).
 - Duration: if the brief states a target duration ("15-second", "X seconds",
@@ -44,9 +61,82 @@ Turn a brief into a storyboard.json. Requirements:
 - All factual values MUST come from the brief. Never invent data.
 - Colors: small intentional palette (max 4) with one accent for hierarchy.
 - Every scene needs a complete values object for its verb.
-Return ONLY valid JSON.`;
+Return ONLY valid JSON: {"title":string,"formatArchetype":"case-study"|"data-explainer"|"systems-explainer"|"timeline","beats":[{"line","kind","emphasis?","facts":[]}],"scenes":[{"verb","duration","values","hook?","microhook?","tone?"}]}.`;
 
-const VALUES_CONTRACT = `Verb -> values contracts:
+/** One-pass script → beats + scenes (single LLM call — latency matters). */
+export async function runDirector(
+  brief: string,
+  opts?: { duration?: number; tone?: string; ratio?: string; style?: string; reference?: string; brandKit?: { name: string; colors: string[]; vibe: string } },
+): Promise<{ storyboard: Storyboard; usage: { model: string; prompt: number; completion: number; total: number }; beats: ScriptBeat[] }> {
+  const startedAt = Date.now();
+  const phase = (name: string) =>
+    console.log(`[director] ${name} done in ${((Date.now() - startedAt) / 1000).toFixed(0)}s`);
+  const extras = [
+    opts?.duration ? `Target duration: ${opts.duration}s.` : "",
+    opts?.tone ? `Tone: ${opts.tone}.` : "",
+    opts?.ratio ? `Format ratio: ${opts.ratio}.` : "",
+    opts?.style
+      ? `Visual style: ${opts.style}. Background and text colors are injected automatically — choose accent colors that fit the style's mood.`
+      : "",
+    opts?.reference
+      ? `REFERENCE VIDEO STYLE (match this look and feel — it is the client's reference):\n${opts.reference}`
+      : "",
+    opts?.brandKit
+      ? `Brand kit "${opts.brandKit.name}" (vibe: ${opts.brandKit.vibe}): palette = ${opts.brandKit.colors.join(", ")}. Use ONLY these colors — first color is the canvas/background, the rest are accents (one dominant accent).`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const KINDS = new Set(["hook", "context", "claim", "proof", "payoff", "closer"]);
+  let lastErr: Error | null = null;
+  let usage = { model: "unknown", prompt: 0, completion: 0, total: 0 };
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const retryNote =
+        lastErr instanceof Error && attempt === 2
+          ? `\n\nYour previous attempt was rejected. Fix ALL of these: ${lastErr.message}`
+          : "";
+      const { json, usage: u } = await chatJsonU<{
+        title?: string;
+        formatArchetype?: string;
+        beats?: ScriptBeat[];
+        scenes?: Storyboard["scenes"];
+      }>(PLAN_SYSTEM, `BRIEF:\n${brief}\n\n${extras}\n\n${VALUES_CONTRACT}${retryNote}`, 0.3);
+      usage = u;
+
+      const beats = (json.beats ?? []).slice(0, 7).map((b, i) => ({
+        line: String(b.line ?? "").trim(),
+        kind: (KINDS.has(b.kind) ? b.kind : i === 0 ? "hook" : "claim") as ScriptBeat["kind"],
+        emphasis: b.emphasis ? String(b.emphasis).trim() : undefined,
+        facts: (Array.isArray(b.facts) ? b.facts : []).map((f) => String(f).trim()).filter(Boolean).slice(0, 6),
+      }));
+
+      const sb: Storyboard = {
+        title: String(json.title ?? ""),
+        formatArchetype: json.formatArchetype ?? "case-study",
+        scenes: json.scenes ?? [],
+        total: 0,
+      };
+      const beatErrors: string[] = [];
+      if (beats.length < 3) beatErrors.push("need at least 3 beats");
+      if (beats.some((b) => !b.line)) beatErrors.push("beat with empty line");
+      const errors = [...validateStoryboard(sb), ...beatErrors];
+      const vErrs = varietyErrors(sb.scenes);
+      if (!errors.length && vErrs.length === 0) {
+        sb.total = sb.scenes.reduce((a, s) => a + s.duration, 0);
+        phase("beat breakdown + scene plan (single LLM pass)");
+        return { storyboard: sb, usage, beats };
+      }
+      lastErr = new Error(`storyboard invalid: ${[...errors, ...vErrs].join("; ")}`);
+      console.error(`[director] retry ${attempt}: ${lastErr.message}`);
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+    }
+    if (attempt === 1) await new Promise((r) => setTimeout(r, 400));
+  }
+  throw lastErr ?? new Error("director failed");
+}const VALUES_CONTRACT = `Verb -> values contracts:
 - count-up:       {value:number, label:string, suffix?, prefix?, accent?}
 - chart-race:     {title:string, items:[{label,value,color?}], accent?}
 - kinetic-title:  {lines:string[], accent?, accentOn?:number, kicker?}
@@ -92,78 +182,6 @@ function varietyErrors(scenes: Storyboard["scenes"]) {
   return errs;
 }
 
-/** Runs the director agent with one validation retry. Returns usage too. */
-export async function runDirector(
-  brief: string,
-  opts?: { duration?: number; tone?: string; ratio?: string; style?: string; reference?: string; brandKit?: { name: string; colors: string[]; vibe: string } },
-): Promise<{ storyboard: Storyboard; usage: { model: string; prompt: number; completion: number; total: number }; beats: ScriptBeat[] }> {
-  const extras = [
-    opts?.duration ? `Target duration: ${opts.duration}s.` : "",
-    opts?.tone ? `Tone: ${opts.tone}.` : "",
-    opts?.ratio ? `Format ratio: ${opts.ratio}.` : "",
-    opts?.style
-      ? `Visual style: ${opts.style}. Background and text colors are injected automatically — choose accent colors that fit the style's mood.`
-      : "",
-    opts?.reference
-      ? `REFERENCE VIDEO STYLE (match this look and feel — it is the client's reference):\n${opts.reference}`
-      : "",
-    opts?.brandKit
-      ? `Brand kit "${opts.brandKit.name}" (vibe: ${opts.brandKit.vibe}): palette = ${opts.brandKit.colors.join(", ")}. Use ONLY these colors — first color is the canvas/background, the rest are accents (one dominant accent).`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  // STAGE 1 — break the script down into narrative beats BEFORE planning scenes.
-  const { beats, usage: breakdownUsage } = await runBeatBreakdown(brief);
-
-  // VO timing: each scene's duration comes from its beat's spoken length
-  // (~150 wpm), so the video matches how the script reads aloud.
-  const beatDurations = beats.map((b) => {
-    const words = b.line.split(/\s+/).filter(Boolean).length;
-    return Math.max(4, Math.min(12, Math.round((words / 150) * 60)));
-  });
-  const voicedTotal = beatDurations.reduce((a, n) => a + n, 0);
-  const durationHints = beats
-    .map((b, i) => `${i + 1}. ~${beatDurations[i]}s (${b.line.split(/\s+/).filter(Boolean).length} words @150wpm)`)
-    .join("\n");
-
-  let lastErr: Error | null = null;
-  let usage = { model: "unknown", prompt: 0, completion: 0, total: 0 };
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const retryNote =
-        lastErr instanceof Error && attempt === 2
-          ? `\n\nYour previous attempt was rejected. Fix ALL of these: ${lastErr.message}`
-          : "";
-      const { json: sb, usage: u } = await chatJsonU<Storyboard>(
-        DIRECTOR_SYSTEM,
-        `BRIEF:\n${brief}\n\n${extras}\n\nSCRIPT BEATS (break these down into scenes — one scene per beat, or one scene for two tightly-coupled beats, never the reverse):\n${beats
-          .map(
-            (b, i) =>
-              `${i + 1}. [${b.kind}] ${b.line}${b.facts.length ? ` (facts: ${b.facts.join("; ")})` : ""}`,
-          )
-          .join("\n")}\n\nVOICE-OVER TIMING — give each scene the duration of its beat's spoken length:\n${durationHints}\nThe whole video should total about ${voicedTotal}s (the script read at ~150 wpm). Scenes may breathe up to +1s for holds, but never cut a beat short.\n\n${VALUES_CONTRACT}${retryNote}`,
-      );
-      usage = { ...u, prompt: u.prompt + breakdownUsage.prompt, completion: u.completion + breakdownUsage.completion, total: u.total + breakdownUsage.total };
-      const errors = validateStoryboard(sb);
-      const vErrs = varietyErrors(sb.scenes);
-      if (!errors.length && vErrs.length === 0) {
-        sb.total = sb.scenes.reduce((a, s) => a + s.duration, 0);
-        return { storyboard: sb, usage, beats };
-      }
-      lastErr = new Error(
-        `storyboard invalid: ${[...errors, ...vErrs].join("; ")}`,
-      );
-      console.error(`[director] retry ${attempt}: ${lastErr.message}`);
-    } catch (e) {
-      lastErr = e instanceof Error ? e : new Error(String(e));
-    }
-    if (attempt === 1) await new Promise((r) => setTimeout(r, 400));
-  }
-  throw lastErr ?? new Error("director failed");
-}
-
 export type ScriptBeat = {
   line: string;
   kind: "hook" | "context" | "claim" | "proof" | "payoff" | "closer";
@@ -171,42 +189,3 @@ export type ScriptBeat = {
   facts: string[];
 };
 
-const BEAT_SYSTEM = `You are the SCRIPT ANALYST of an agentic motion-graphics engine.
-The input is a narration script — break it down the way a voice-over would be
-segmented: each beat is ONE spoken segment (a thought the narrator delivers in
-one breath, 5-14 words). Rules:
-- 3 to 7 beats. Never merge two distinct facts into one beat.
-- Every beat has a kind: hook (the first attention-grab), context (setting),
-  a claim (a statement), proof (a fact/statistic that backs a claim), payoff (the
-  single best insight — near the end, not last), closer (final stamp).
-- Extract EVERY concrete fact (numbers, names, percentages, years) into the
-  beat's facts array — verbatim from the script, never invented.
-- emphasis: the single word/phrase the beat hinges on (if any).
-- Beats read naturally as spoken lines — short, speakable, no labels.
-Return ONLY valid JSON: {"beats":[{"line","kind","emphasis?","facts":[]}]}.`;
-
-/** Stage 1 — script → narrative beats (the scene plan is built ON this). */
-async function runBeatBreakdown(
-  brief: string,
-): Promise<{ beats: ScriptBeat[]; usage: { model: string; prompt: number; completion: number; total: number } }> {
-  const KINDS = new Set(["hook", "context", "claim", "proof", "payoff", "closer"]);
-  let lastErr: Error | null = null;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const { json, usage } = await chatJsonU<{ beats?: ScriptBeat[] }>(BEAT_SYSTEM, brief, 0.3);
-      const beats = (json.beats ?? []).slice(0, 7).map((b, i) => ({
-        line: String(b.line ?? "").trim(),
-        kind: (KINDS.has(b.kind) ? b.kind : i === 0 ? "hook" : "claim") as ScriptBeat["kind"],
-        emphasis: b.emphasis ? String(b.emphasis).trim() : undefined,
-        facts: (Array.isArray(b.facts) ? b.facts : []).map((f) => String(f).trim()).filter(Boolean).slice(0, 6),
-      }));
-      if (beats.length < 3) throw new Error("need at least 3 beats");
-      if (beats.some((b) => !b.line)) throw new Error("beat with empty line");
-      return { beats, usage };
-    } catch (e) {
-      lastErr = e instanceof Error ? e : new Error(String(e));
-    }
-    if (attempt === 1) await new Promise((r) => setTimeout(r, 400));
-  }
-  throw lastErr ?? new Error("beat breakdown failed");
-}
