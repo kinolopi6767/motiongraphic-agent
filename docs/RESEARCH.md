@@ -456,3 +456,29 @@ restraint in on-screen text.
 - Premium finish: wedesignmotion.com (pro checklist; overlays: grain/dust/leaks/paper; effects that age well; 5-layer finishing stack); invideo.io/blog/ai-video-post-production (blur→grain→grade order, uniform sharpness = synthetic tell); tapvid.ai/blog/niche-motion-graphics-style-guide (niche aesthetic, texture as differentiator); aethera.ai/blog/motion-graphics-design-brand-system (restraint, one strong moment per minute); wettonco.com (grid, legibility vs narrative)
 - Sound design: github.com/tryproduck/produck-skills/blob/main/skills/demo-studio/docs/SOUND.md (silent-render + synth kit + cue-list pattern, motion→SFX mapping, mixing rules); sonusgearflow.com/sounddesign/abstract-sounds-design-for-motion-graphics (transient/tone/tail, pitch families, two reverbs); sonusgearflow.com/musicproduction/designing-transitions-ui-and-feedback-sounds (UI transient specs: dBTP, LUFS tiers, ±20ms sync); motiontheagency.com/blog/sound-design-for-explainer-videos (VO/SFX/music layers); sfxengine.com/blog/after-effects-sound-effects-tutorial
 - Channel archetypes: outlierkit.com/resources/faceless-business-documentary-channels/ (format teardown table); faceless.my/youtube/faceless-finance-documentary-channels/ (stack + what-to-copy); facelesschannels.net/coldfusion-youtube-channel-case-study/; coldfusioncollective.com/about; yespress.io/dagogo-altraide (editorial judgment, human decision point)
+
+---
+
+## Addendum 2026-08-11 — Product UI/UX & market research (build input for UI-PLAN.md)
+
+**Market shape (verified, 2026):**
+- Category split: avatar agents (HeyGen/Synthesia), cinematic generators (Runway Gen-4.5/Veo 3.1/Kling 3.0/Seedance 2.0), workflow agents (ngram, NextDemo, Demosmith, Pexo, Runway Agent 2.0).
+- Sora consumer web/app discontinued Apr 2026 — do NOT build on Sora; Runway/Kling/Veo are the lasting generation rails, or self-hosted engines (ours: HTML+GSAP via HyperFrames).
+- Native synchronized audio is now standard (Veo 3.1, Kling, Runway Gen-4+); "silent clip" products feel dated — our SFX/audio phases are mandatory, not optional.
+- Editability beats one-prompt magic: storyboard/remix/recut workflows are the reported driver of retention and upgrade (Runway Agent 2.0, Sora Flow, Google Flow).
+- Multi-model hubs win platform mindshare (Runway now resells Veo/Kling/Seedance); agentic orchestrators (Manus, Pollo, Pexo) are the newest wave.
+- Enterprise/regulatory: EAA live Jun 28 2025, ADA post-2024 rule, Section 508 — WCAG 2.2 AA is a procurement requirement; accessible caption/AD/keyboard is a sales feature. WeVideo ships a VPAT and gates releases on manual keyboard+screen-reader passes.
+- Pricing norms: generators $8–35/mo credit tiers; avatar SaaS $15–35/mo seats; enterprise $30K+/yr. Free tier needed for funnel (Kling's 66 credits/day is the most generous benchmark).
+
+**Competitor UX patterns worth copying:**
+- ngram: plain-language prompt → script+storyboard reviewable BEFORE render; per-scene brand-matched visuals; captions burned by default; 16:9/1:1/9:16 from one render; Brand Kit applied per scene; MCP/Zapier/n8n agentic access.
+- NextDemo: prompt → agent writes Playwright script → MP4 appears; script persists and re-runs (CI); local-first privacy as selling point.
+- Demosmith: URL+prompt → autonomous browser agent; auto-cuts dead time; 29-language localization; persona variants.
+- Runway Agent 2.0: storyboard approval step explicitly to save credits; consistency locking; audio+assembly in one pass.
+- Figma Weave: node-based canvas exposes the pipeline; reusable workflows; share simplified interfaces (team member can run without understanding internals).
+- Cloudinary a11y guide: caption-safe framing (keep lower third clear), deterministic caption preference persistence, AD decision rubric, custom players must expose native semantics, focus-visibility tokens tested under brand themes.
+
+**Architecture patterns verified (Next.js 15):**
+- Job spine: Supabase (Postgres+RLS+Realtime Postgres Changes for job progress) + BullMQ/workers; NEVER heavy work in Server Actions/serverless (60-800s timeouts kill renders); dedicated stitch route with maxDuration ceiling; webhook callbacks HMAC-secret-signed + idempotent; credits deducted transactionally at submit, refunded at both failure points.
+- Storage: Cloudflare R2 (zero egress) + signed HLS/Mux for playback; TUS direct uploads when user assets exist.
+- Reference implementations studied: dreamlab (Kling router, credits, webhook→stitch, recovery cron), Qvora (Temporal for durable video pipelines, provider-neutral Go interface), kivi (BullMQ+R2+VOD), ai-animation-factory (stage workers 9-wide), cloudflare-stream+supabase pipeline (webhook-owned lifecycle states).
