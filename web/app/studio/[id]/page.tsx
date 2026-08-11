@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { CloneButton } from "@/components/clone-button";
+import { ReRenderSceneButton } from "@/components/re-render-scene-button";
 import { RenderButton } from "@/components/render-button";
 import { SceneEditor } from "@/components/scene-editor";
 import { WhyLook } from "@/components/why-look";
@@ -19,8 +20,24 @@ import {
 } from "@/lib/storyboard";
 
 const STORE = join(process.cwd(), "data", "storyboards");
+const JOBS_STORE = join(process.cwd(), "data", "jobs");
 
 export const dynamic = "force-dynamic";
+
+/** True when the storyboard has at least one previous done render (segment cache). */
+async function hasPreviousRender(storyboardId: string): Promise<boolean> {
+  try {
+    const { readdir, readFile } = await import("node:fs/promises");
+    const files = (await readdir(JOBS_STORE)).filter((f) => f.endsWith(".json") && !f.includes(".storyboard."));
+    for (const f of files) {
+      try {
+        const j = JSON.parse(await readFile(join(JOBS_STORE, f), "utf8"));
+        if (j.storyboardId === storyboardId && j.status === "done" && Array.isArray(j.segments) && j.segments.length > 0) return true;
+      } catch {}
+    }
+  } catch {}
+  return false;
+}
 
 export default async function StoryboardPage({
   params,
@@ -35,6 +52,7 @@ export default async function StoryboardPage({
     brandKitId?: string;
     brandKitName?: string;
     palette?: string[];
+    voiceTier?: string;
     createdAt: string;
   };
   try {
@@ -46,6 +64,7 @@ export default async function StoryboardPage({
   const bombIdx = valueBombIndex(sb.scenes, sb.total);
   const hookScenes = new Set<number>([0]);
   if (bombIdx > 0) hookScenes.add(bombIdx);
+  const prevRender = await hasPreviousRender(id);
 
   return (
     <AppShell projectTitle={sb.title}>
@@ -96,7 +115,8 @@ export default async function StoryboardPage({
               <p className="mt-1 text-[14px] text-text-med">
                 {sb.scenes.length} scenes · {sb.total}s · {sb.formatArchetype}
                 {record.ratio && <> · {record.ratio}</>}
-                {record.brandKitName && <> · {record.brandKitName}</>} · free to edit
+                {record.brandKitName && <> · {record.brandKitName}</>}
+                {record.voiceTier && <> · voice tier: {record.voiceTier}</>} · free to edit
               </p>
               {record.palette && (
                 <div className="mt-2 flex items-center gap-1.5" aria-label="Brand palette">
@@ -173,6 +193,12 @@ export default async function StoryboardPage({
                       approved={s.approved}
                     />
                     {hookScenes.has(i) && <HookPicker storyboardId={id} index={i} applied={s.hook} />}
+                    <ReRenderSceneButton
+                      storyboardId={id}
+                      index={i}
+                      cost={costFor(s.duration)}
+                      hasPreviousRender={prevRender}
+                    />
                     <WhyLook lines={[a.role, a.verb, a.pacing]} />
                   </div>
                 </article>

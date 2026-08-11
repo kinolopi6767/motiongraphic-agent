@@ -13,6 +13,8 @@ type Job = {
   storyboardId?: string;
   status: "queued" | "running" | "done" | "failed";
   stage?: string;
+  kind?: "full" | "segment";
+  sceneIndex?: number;
   cost?: number;
   refunded?: boolean;
   error?: string;
@@ -20,6 +22,10 @@ type Job = {
   frames?: string[];
   frameTimes?: (number | null)[];
   motion?: Motion[];
+  segments?: string[];
+  thumbnailPath?: string;
+  sfx?: boolean;
+  voice?: { tier?: string; words?: number; error?: string } | null;
   seed?: string;
   createdAt: string;
   finishedAt?: string;
@@ -82,8 +88,29 @@ function LogViewer({ jobId }: { jobId: string }) {
 function Filmstrip({ job }: { job: Job }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
+  const [captionsOn, setCaptionsOn] = useState(false);
+  const [active, setActive] = useState<string | null>(null);
+  const [words, setWords] = useState<{ word: string; start: number; end: number }[] | null>(null);
   const frames = job.frames ?? [];
   const times = job.frameTimes ?? [];
+  const hasVoice = (job.voice?.words ?? 0) > 0;
+
+  const loadWords = () => {
+    if (words || !hasVoice) return;
+    fetch(`/api/jobs/${job.id}/words`)
+      .then((r) => r.json())
+      .then((d) => setWords(d.words ?? []))
+      .catch(() => {});
+  };
+
+  const onTime = () => {
+    const v = videoRef.current;
+    if (!v || !words || !captionsOn) return;
+    const t = v.currentTime;
+    const w = words.find((x) => t >= x.start && t < x.end);
+    setActive(w ? w.word : null);
+  };
+
   return (
     <div className="mt-3">
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Contact sheet — click a frame to seek">
@@ -130,14 +157,62 @@ function Filmstrip({ job }: { job: Job }) {
           ))}
         </div>
       )}
-      <video
-        ref={videoRef}
-        src={`/api/jobs/${job.id}/video`}
-        controls
-        preload="metadata"
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-        className="mt-3 h-24 w-40 rounded-ctl border border-border-subtle bg-surface-2"
-      />
+      {job.sfx && (
+        <p className="mt-2 text-[12px] text-text-low">
+          SFX bed synthesized (deterministic cue kit) · voice:{" "}
+          {hasVoice
+            ? `${job.voice?.tier ?? "AI-OK"} · ${job.voice?.words} words`
+            : job.voice?.error
+              ? `skipped (${job.voice.error})`
+              : "off"}
+        </p>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <video
+          ref={videoRef}
+          src={`/api/jobs/${job.id}/video`}
+          controls
+          preload="metadata"
+          poster={job.thumbnailPath ? `/api/jobs/${job.id}/thumbnail` : undefined}
+          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+          onTimeUpdate={onTime}
+          className="h-24 w-40 rounded-ctl border border-border-subtle bg-surface-2"
+        />
+        {hasVoice && (
+          <label className="flex items-center gap-2 text-[13px] text-text-med">
+            <input
+              type="checkbox"
+              checked={captionsOn}
+              onChange={(e) => {
+                setCaptionsOn(e.target.checked);
+                if (e.target.checked) loadWords();
+              }}
+              className="size-4 accent-[var(--accent)]"
+            />
+            Active-word captions
+            {captionsOn && active && (
+              <span className="rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 text-[12px] font-medium text-accent-strong">
+                {active}
+              </span>
+            )}
+          </label>
+        )}
+        {hasVoice && (
+          <a
+            href={`/api/jobs/${job.id}/captions`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[13px] text-text-med underline underline-offset-2 hover:text-text-hi"
+          >
+            WebVTT
+          </a>
+        )}
+        {job.segments && (
+          <span className="text-[12px] tabular-nums text-text-low">
+            {job.segments.length} segments
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -153,7 +228,11 @@ function RetryButton({ job, onQueued }: { job: Job; onQueued: () => void }) {
       const res = await fetch("/api/jobs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ storyboardId: job.storyboardId, seed: job.seed }),
+        body: JSON.stringify({
+          storyboardId: job.storyboardId,
+          seed: job.seed,
+          sceneIndex: job.kind === "segment" ? job.sceneIndex : undefined,
+        }),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -239,6 +318,14 @@ export default function JobsPage() {
                       </span>
                     )}
                     <span className="text-[14px] font-semibold tabular-nums">{j.id}</span>
+                    {j.kind === "segment" && (
+                      <span
+                        className="rounded-full border border-accent/40 bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent-strong"
+                        title="Zero-gap: only this scene re-rendered; the rest came from the segment cache"
+                      >
+                        segment · scene {j.sceneIndex !== undefined ? j.sceneIndex + 1 : "?"}
+                      </span>
+                    )}
                     {typeof j.cost === "number" && (
                       <span className="text-[12px] tabular-nums text-text-low">
                         {j.cost} cr{j.refunded && " · refunded"}

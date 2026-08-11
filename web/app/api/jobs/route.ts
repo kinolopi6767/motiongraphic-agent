@@ -17,12 +17,20 @@ type JobRecord = {
   storyboardId?: string;
   status: "queued" | "running" | "done" | "failed";
   stage?: string;
+  kind?: "full" | "segment";
+  sceneIndex?: number;
   cost?: number;
   refunded?: boolean;
   error?: string;
   videoPath?: string;
   logFile?: string;
   frames?: string[];
+  frameTimes?: (number | null)[];
+  motion?: { scene: number; score: number; pass: boolean }[];
+  segments?: string[];
+  thumbnailPath?: string;
+  sfx?: boolean;
+  voice?: { tier?: string; words?: number; error?: string } | null;
   seed?: string;
   createdAt: string;
   finishedAt?: string;
@@ -42,7 +50,7 @@ async function listJobs(): Promise<JobRecord[]> {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { storyboardId?: string; seed?: string };
+  let body: { storyboardId?: string; seed?: string; sceneIndex?: number };
   try {
     body = await req.json();
   } catch {
@@ -54,17 +62,29 @@ export async function POST(req: NextRequest) {
   }
 
   const recordPath = join(SB_STORE, `${storyboardId}.json`);
-  let record: { storyboard: { total: number } };
+  let record: { storyboard: { total: number; scenes: { duration: number }[] } };
   try {
     record = JSON.parse(await readFile(recordPath, "utf8"));
   } catch {
     return NextResponse.json({ error: "storyboard not found" }, { status: 404 });
   }
 
+  // Zero-gap segment re-render (Phase 5): sceneIndex => only that scene renders.
+  const sceneIndex =
+    typeof body.sceneIndex === "number" &&
+    Number.isInteger(body.sceneIndex) &&
+    body.sceneIndex >= 0 &&
+    body.sceneIndex < (record.storyboard.scenes?.length ?? 0)
+      ? body.sceneIndex
+      : undefined;
+  const billedSeconds = sceneIndex !== undefined
+    ? record.storyboard.scenes[sceneIndex].duration
+    : (record.storyboard?.total ?? 8);
+
   // Cost gate (Flow D): deduct BEFORE enqueue, refund on failure (swept in GET).
-  const cost = costFor(record.storyboard?.total ?? 8);
+  const cost = costFor(billedSeconds);
   try {
-    await debit(cost, `job-queue:${storyboardId}`);
+    await debit(cost, `job-queue:${storyboardId}${sceneIndex !== undefined ? `:scene${sceneIndex}` : ""}`);
   } catch (e) {
     const insufficient =
       e instanceof Error && "code" in e && (e as Error & { code?: string }).code === "INSUFFICIENT";
@@ -78,24 +98,31 @@ export async function POST(req: NextRequest) {
   const seed =
     typeof body.seed === "string" && /^[a-z0-9]{4,16}$/.test(body.seed) ? body.seed : null;
   const finalSeed = seed ?? Math.random().toString(36).slice(2, 8);
+  const kind = sceneIndex !== undefined ? "segment" : "full";
   const job: JobRecord = {
     id: jobId,
     storyboardId,
     status: "queued",
     stage: "queued",
+    kind,
+    sceneIndex,
     cost,
     seed: finalSeed,
     createdAt: new Date().toISOString(),
   };
   await writeFile(jobFile, JSON.stringify(job, null, 2));
 
-  const child = spawn("node", [JOB_RUNNER, recordPath, jobId, jobFile, "", finalSeed], {
-    stdio: "ignore",
-    detached: true,
-  });
+  const child = spawn(
+    "node",
+    [JOB_RUNNER, recordPath, jobId, jobFile, "", finalSeed, kind, sceneIndex !== undefined ? String(sceneIndex) : ""],
+    {
+      stdio: "ignore",
+      detached: true,
+    }
+  );
   child.unref();
 
-  return NextResponse.json({ id: jobId, status: "queued", cost }, { status: 202 });
+  return NextResponse.json({ id: jobId, status: "queued", cost, kind, sceneIndex }, { status: 202 });
 }
 
 export async function GET() {

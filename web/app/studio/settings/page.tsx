@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/button";
+import { VoiceSettings } from "@/components/voice-settings";
 
 type Tx = { kind: "debit" | "credit"; amount: number; reason: string; at: string };
 
@@ -76,6 +77,13 @@ export default function SettingsPage() {
                 ))}
               </ul>
             )}
+          </div>
+        </section>
+
+        <section aria-label="Voice" className="mt-8">
+          <h2 className="text-[15px] font-semibold">Voice narration — Deepgram</h2>
+          <div className="mt-3 rounded-card border border-border-subtle bg-surface-1 p-5">
+            <VoiceSettings />
           </div>
         </section>
 

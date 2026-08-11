@@ -28,6 +28,9 @@ await mkdir(outDir, { recursive: true });
 const doRender = flags.includes("--render");
 const snapAt = flags.find((f) => f.startsWith("--snapshot"))?.split("=")[1];
 const seed = flags.find((f) => f.startsWith("--seed="))?.split("=")[1];
+const sceneOnly = flags.find((f) => f.startsWith("--scene="))?.split("=")[1]
+  ? Number(flags.find((f) => f.startsWith("--scene=")).split("=")[1])
+  : undefined;
 // --storyboard=<file>: render an approved storyboard as-is (web storyboard gate).
 // Skips the director LLM pass — the review-approved board is the source of truth.
 const existingStoryboard = flags.find((f) => f.startsWith("--storyboard"))?.split("=")[1];
@@ -101,15 +104,31 @@ console.error(`[agent] manifest: ${manifestPath}`);
 
 // 4) ASSEMBLE
 execFileSync("node", ["src/assemble.mjs", projectDir, manifestPath], { stdio: "inherit" });
+console.error(`[agent] project: ${projectDir}`);
 
-// 5) SNAPSHOT / RENDER
+// 5) SNAPSHOT
 const fps = manifest.fps;
 if (snapAt) {
   execFileSync("npx", ["hyperframes", "snapshot", projectDir, "--at", snapAt], { stdio: "inherit" });
 }
+
+// 6) RENDER — chaptered segments (Phase 5 zero-gap re-edit).
+// Each scene renders as its own MP4 segment; the web worker concats/splices.
 if (doRender) {
-  const out = join(outDir, `${projectId}.mp4`);
-  execFileSync("npx", ["hyperframes", "render", projectDir, "-o", out], { stdio: "inherit" });
-  console.error(`[agent] rendered: ${out}`);
+  const segDir = join(projectDir, "segments");
+  await mkdir(segDir, { recursive: true });
+  const indices = sceneOnly !== undefined ? [sceneOnly] : storyboard.scenes.map((_, i) => i);
+  for (const i of indices) {
+    if (!Number.isInteger(i) || i < 0 || i >= storyboard.scenes.length) {
+      throw new Error(`invalid scene index: ${i}`);
+    }
+    const segOut = join(segDir, `seg-${i}.mp4`);
+    execFileSync(
+      "npx",
+      ["hyperframes", "render", projectDir, "-c", `compositions/scene-${i}.html`, "-o", segOut, "--quiet"],
+      { stdio: "inherit" }
+    );
+    console.error(`[agent] segment ${i}: ${segOut}`);
+  }
 }
 console.error(`[agent] done -> ${projectDir}`);

@@ -170,10 +170,10 @@ investigation → twist → resolution) instead of a plain 3-act; the arc valida
 | **0 · Scaffold** (✅ done 2026-08-11) | Repo layout, npm, `hyperframes@0.7.105`, vendored gsap, user-space ffmpeg 7.0.2 (johnvansickle static, no sudo), 4 motion-verb templates, deterministic `src/assemble.mjs`, Phase-1 agents (`llm.mjs`, `director.mjs`, `schema.mjs`) | hello-world + 4-verb assembly-probe render → snapshot QC pass on all 4 scenes |
 | **1 · Single scene MVP** | LLM script → storyboard (1 scene) → one scene agent → motion verbs (count-up, kinetic-title, chart-race) → assembly → render | Prompt → 10s animated MP4 |
 | **2 · Multi-scene + motion systems** | Director agent, storyboard schema + arc validation, 4 motion systems, transitions, variation engine v1, finishing stack (grain/vignette/grade) | Script → full 30–60s video with varied scenes |
-| **3 · Delivery guard** | promise-check CLI (no-stasis, build-phase, determinism, aspect/duration, retention-contract checks) | Guard catches real violations on test corpus |
-| **4 · Voice layer** | Voice-tier gate, Deepgram TTS+STT round-trip, word timestamps, captions, ducking, ASR verify, pronunciation dictionary (default OFF) | Narrated video + synced captions |
-| **4b · SFX engine** | numpy-synth kit + cue list from verb beats + mux + RMS report (default ON — no narration needed) | Video with finished audio track, measured sync |
-| **5 · Polish** | 8 motion systems, shader transitions, contact-sheet agent review loop (pause-test), chaptered re-edit, thumbnail, web UI | Open beta: script in → platform-ready MP4 |
+| **3 · Delivery guard** | promise-check CLI (no-stasis, build-phase, determinism, aspect/duration, retention-contract checks) | ✅ Static tier (retention contract, duration, pacing) live as pre-render badges; render tier (no-stasis) = per-scene frame-diff motion guard on jobs |
+| **4 · Voice layer** | Voice-tier gate, Deepgram TTS+STT round-trip, word timestamps, captions, ducking, ASR verify, pronunciation dictionary (default OFF) | ✅ Built & integrated (settings, config store, `src/voice.mjs`); **disabled by default** — needs a keyed Deepgram run to validate live. TTS→STT round-trip, VTT + active-word captions, −12 dB SFX ducking, voice-tier gate, SSML pronunciation dictionary |
+| **4b · SFX engine** | numpy-synth kit + cue list from verb beats + mux + RMS report (default ON — no narration needed) | ✅ `src/audio.mjs` — pure-Node deterministic synth (no numpy), cue kit from verb beats, RMS report, muxed with narration |
+| **5 · Polish** | 8 motion systems, shader transitions, contact-sheet agent review loop (pause-test), chaptered re-edit, thumbnail, web UI | ✅ Chaptered re-edit (zero-gap segment re-render, bit-identical cache), value-bomb thumbnail, contact-sheet scrubber, seed family picker, brand kits, ⌘K; remaining: ratio variants, 8 motion systems |
 
 ## 10. Risks & mitigations
 

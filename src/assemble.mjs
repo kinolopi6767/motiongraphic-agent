@@ -36,6 +36,7 @@ const out = resolve(projectDir);
 
 await mkdir(join(out, "motion-verbs"), { recursive: true });
 await mkdir(join(out, "assets", "vendor"), { recursive: true });
+await mkdir(join(out, "compositions"), { recursive: true });
 await cp(join(ASSETS, "vendor", "gsap.min.js"), join(out, "assets", "vendor", "gsap.min.js"));
 
 let t = 0;
@@ -54,6 +55,32 @@ for (let i = 0; i < manifest.scenes.length; i++) {
            data-composition-src="motion-verbs/${sc.verb}.html"
            data-start="${t}" data-duration="${sc.duration}"
            data-variable-values='${JSON.stringify(values)}'></div>`);
+
+  // Zero-gap segment compositions (Phase 5 chaptered re-edit): one file per
+  // scene, timeline starting at 0 — renders as its own MP4 segment.
+  const seg = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=${manifest.width}, height=${manifest.height}" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: ${manifest.width}px; height: ${manifest.height}px; overflow: hidden; background: #000; }
+    </style>
+  </head>
+  <body>
+    <div data-composition-id="${manifest.id}-seg${i}" data-start="0" data-duration="${sc.duration}"
+         data-width="${manifest.width}" data-height="${manifest.height}" data-fps="${manifest.fps}"
+         data-no-timeline>
+      <div id="scene-${i + 1}-${sc.verb}" data-composition-id="s${i + 1}-${sc.verb}"
+           data-composition-src="motion-verbs/${sc.verb}.html"
+           data-start="0" data-duration="${sc.duration}"
+           data-variable-values='${JSON.stringify(values)}'></div>
+    </div>
+  </body>
+</html>
+`;
+  await writeFile(join(out, "compositions", `scene-${i}.html`), seg);
   t += sc.duration;
 }
 

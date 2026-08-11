@@ -46,9 +46,12 @@ LLM auth is automatic: `ZEN_URL` (default `https://opencode.ai/zen/v1`),
 - `app/api/storyboards/[id]/route.ts` — dev store: read, scene PATCH, delete
 - `app/api/storyboards/[id]/clone/` — "Make variant": new id, same board, fresh seed
 - `app/api/storyboards/[id]/hooks/route.ts` — A/B/C hook engineer (LLM)
-- `app/api/jobs/route.ts` — cost gate + job queue (POST) + refund sweep (GET)
-- `app/api/jobs/[id]/route.ts` · `[id]/video/` · `[id]/log/` · `[id]/frames/[i]/` —
-  status, MP4, log, contact-sheet frames
+- `app/api/jobs/route.ts` — cost gate + job queue (POST; optional `sceneIndex` =
+  zero-gap segment re-render) + refund sweep (GET)
+- `app/api/jobs/[id]/route.ts` · `[id]/video/` · `[id]/log/` · `[id]/frames/[i]/` ·
+  `[id]/captions/` · `[id]/words/` · `[id]/thumbnail/` — status, MP4, log,
+  contact-sheet frames, WebVTT captions, word timestamps, value-bomb thumbnail
+- `app/api/config/` — voice config (Deepgram; GET sanitized / PUT / POST test)
 - `app/api/ledger/route.ts` — credits balance + transactions (local JSON)
 - `app/api/data/route.ts` — reset local storyboards/jobs (credits kept)
 - `lib/director.ts` — director agent prompt + validation retry + hook engineer
@@ -56,11 +59,16 @@ LLM auth is automatic: `ZEN_URL` (default `https://opencode.ai/zen/v1`),
 - `lib/storyboard.ts` — contract, validation, summaries, annotations,
   delivery-guard checks (`runGuard`)
 - `lib/ledger.mjs` — credits ledger (debit/credit/cost)
-- `lib/render-job.mjs` — background render worker (detached child of Next);
-  prepends `<repo>/.tools` (static ffmpeg/ffprobe) to PATH, snapshots 3 frames
-  per scene (contact sheets + no-stasis sampling), pixel-diffs consecutive
-  frames per scene into a motion score (`job.motion`), records seed + frame
-  times on the job
+- `lib/render-job.mjs` — background render worker (detached child of Next).
+  Chaptered pipeline: every scene renders as its own MP4 segment; full jobs
+  concat all; **segment jobs re-render ONE scene and splice it into the cached
+  segments of the previous done render** (verified bit-identical). Then: SFX
+  bed (`src/audio.mjs`, deterministic cue kit from verb beats, −14 LUFS-ish,
+  RMS report), optional Deepgram narration (`src/voice.mjs`), mux (aac),
+  value-bomb thumbnail, motion guard, report.json. Prepends `<repo>/.tools`
+  (static ffmpeg/ffprobe) to PATH.
+- `lib/config.ts` — Deepgram voice config store (`data/config.json`, disabled
+  by default; key never leaves the server)
 - `lib/brand-kits.ts` — brand kit store + WCAG contrast math (relative
   luminance, 4.5:1 white-text / 3:1 canvas checks) used by the wizard
 - `components/` — shell (⌘K palette, theme toggle, credits pill), button,
@@ -76,7 +84,8 @@ reduced-motion respected. ⌘K command palette ships on all studio routes.
 
 ## Next
 
-- Zero-gap segment re-render (chaptered re-edit — only the changed scene re-renders)
-- Contact-sheet scrubber on the storyboard page (latest render's frames)
-- Brand-kit builder is live; next: per-storyboard ratio variants rendered in one pass
-- Render-tier guard could grow: ASR/caption checks when VO lands (Phase 4)
+- Ratio variants in one pass (one render, three ratios — needs template
+  dimension templating; current templates are fixed 1920×1080)
+- Render-tier guard: ASR verification + caption-coverage checks when narration
+  is on (needs a keyed Deepgram run to validate live)
+- Team share / comments (Phase 5+, needs accounts — out of local-only scope)
