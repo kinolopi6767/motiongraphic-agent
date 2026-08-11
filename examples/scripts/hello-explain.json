@@ -1,0 +1,1 @@
+Generate a 12-second explainer video about how hyperframes renders HTML motion graphics into MP4 files. Use these facts: it uses headless Chrome, seeks frame-by-frame through a GSAP timeline, and encodes with FFmpeg. Tone: curious, crisp.
