@@ -240,7 +240,11 @@ function BriefForm() {
   }, []);
 
   const submit = async () => {
-    if (brief.trim().length < 10 || busy) return;
+    if (busy) return;
+    if (brief.trim().length < 10) {
+      setError("Type at least 10 characters in the brief field above, then click Plan again.");
+      return;
+    }
     setBusy(true);
     setError(null);
     // The director can take a while; never leave the button spinning silently.
@@ -375,7 +379,7 @@ function BriefForm() {
           </p>
         )}
 
-        <Button disabled={busy || brief.trim().length < 10} className="mt-2 sm:self-start sm:px-10">
+        <Button disabled={busy} className="mt-2 sm:self-start sm:px-10">
           {busy ? "Director is planning…" : "Plan the storyboard — free"}
         </Button>
         <p className="text-[13px] text-text-low">
