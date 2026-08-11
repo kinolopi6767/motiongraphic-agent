@@ -30,6 +30,9 @@ Turn a brief into a storyboard.json. Requirements:
 - Total 8-90s, each scene 4-12s.
 - Retention contract: cold-open/hook energy in scene 1, value bomb at 60-70%,
   a forward-pull microhook at the end of each scene (hook/microhook fields).
+- Duration: if the brief states a target duration ("15-second", "X seconds",
+  "30s"), honor it exactly — do NOT invent a different total. Only fall back
+  to the target-duration instruction if the brief has no stated length.
 - All factual values MUST come from the brief. Never invent data.
 - Colors: small intentional palette (max 4) with one accent for hierarchy.
 - Every scene needs a complete values object for its verb.

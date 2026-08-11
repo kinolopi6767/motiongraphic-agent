@@ -172,7 +172,7 @@ function BriefForm() {
   const router = useRouter();
   const search = useSearchParams();
   const [brief, setBrief] = useState(search.get("brief") ?? "");
-  const [duration, setDuration] = useState("30");
+  const [duration, setDuration] = useState("");
   const [tone, setTone] = useState("");
   const [ratio, setRatio] = useState("16:9");
   const [brandKitId, setBrandKitId] = useState<string | null>(search.get("kit"));
@@ -253,15 +253,18 @@ function BriefForm() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-2">
-            <span className="text-[14px] font-medium text-text-med">Target duration (s)</span>
+            <span className="text-[14px] font-medium text-text-med">
+              Target duration (optional)
+            </span>
             <input
               type="number"
               min={8}
               max={90}
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
-              aria-label="Target duration in seconds"
-              className="min-h-[44px] rounded-ctl border border-border-subtle bg-surface-1 px-3 text-[15px] outline-none focus:border-accent"
+              placeholder="auto — from the script"
+              aria-label="Target duration in seconds (optional, auto from script)"
+              className="min-h-[44px] rounded-ctl border border-border-subtle bg-surface-1 px-3 text-[15px] outline-none placeholder:text-text-low focus:border-accent"
             />
           </label>
           <fieldset className="flex flex-col gap-2">
