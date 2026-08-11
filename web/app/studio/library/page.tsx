@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/button";
+import { BrandKitsSection } from "@/components/brand-kits-section";
 import { StoryboardScene, VERBS, sceneBadge, sceneSummary } from "@/lib/storyboard";
 
 const CATALOG: Record<string, { verb: string; label: string; blurb: string; fields: string[] }> = {
@@ -165,41 +166,10 @@ export default async function LibraryPage() {
           )}
         </section>
 
-        <section aria-label="Brand kit" className="mt-10">
-          <h2 className="text-[15px] font-semibold text-text-hi">Brand kit</h2>
-          <div className="mt-4 rounded-card border border-border-subtle bg-surface-1 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[15px] font-semibold">Studio Black</p>
-                <p className="mt-0.5 text-[13px] text-text-med">
-                  The default kit — high-contrast, single-accent. Applied to every storyboard until
-                  onboarding lets you build your own.
-                </p>
-                <div className="mt-3 flex items-center gap-2" aria-label="Palette">
-                  {["#0B0E13", "#6366F1", "#818CF8", "#F2F4F8"].map((c) => (
-                    <span
-                      key={c}
-                      title={c}
-                      className="size-8 rounded-lg border border-border-subtle"
-                      style={{ background: c }}
-                    />
-                  ))}
-                  <span className="ml-2 text-[13px] text-text-low">· Inter · vibe: crisp</span>
-                </div>
-              </div>
-              <BadgePill>contrast ✓ WCAG AA</BadgePill>
-            </div>
-          </div>
+        <section aria-label="Brand kits" className="mt-10">
+          <BrandKitsSection />
         </section>
       </main>
     </AppShell>
-  );
-}
-
-function BadgePill({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded-full border border-border-subtle bg-surface-2 px-3 py-1 text-[12px] font-medium text-text-med">
-      {children}
-    </span>
   );
 }

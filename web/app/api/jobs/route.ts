@@ -42,7 +42,7 @@ async function listJobs(): Promise<JobRecord[]> {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { storyboardId?: string };
+  let body: { storyboardId?: string; seed?: string };
   try {
     body = await req.json();
   } catch {
@@ -75,19 +75,21 @@ export async function POST(req: NextRequest) {
   await mkdir(JOB_STORE, { recursive: true });
   const jobId = `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const jobFile = join(JOB_STORE, `${jobId}.json`);
-  const seed = Math.random().toString(36).slice(2, 8);
+  const seed =
+    typeof body.seed === "string" && /^[a-z0-9]{4,16}$/.test(body.seed) ? body.seed : null;
+  const finalSeed = seed ?? Math.random().toString(36).slice(2, 8);
   const job: JobRecord = {
     id: jobId,
     storyboardId,
     status: "queued",
     stage: "queued",
     cost,
-    seed,
+    seed: finalSeed,
     createdAt: new Date().toISOString(),
   };
   await writeFile(jobFile, JSON.stringify(job, null, 2));
 
-  const child = spawn("node", [JOB_RUNNER, recordPath, jobId, jobFile, "", seed], {
+  const child = spawn("node", [JOB_RUNNER, recordPath, jobId, jobFile, "", finalSeed], {
     stdio: "ignore",
     detached: true,
   });

@@ -38,8 +38,13 @@ LLM auth is automatic: `ZEN_URL` (default `https://opencode.ai/zen/v1`),
 
 ## Structure
 
-- `app/api/brief/route.ts` — director endpoint (Node runtime)
+- `app/api/brief/route.ts` — director endpoint (Node runtime); accepts optional
+  `brandKitId` — kit palette is enforced in the director prompt and recorded on
+  the storyboard record
+- `app/api/brand-kits/` · `brand-kits/[id]/` — brand kit CRUD (name, 2–4 hex
+  colors, vibe) with live WCAG contrast validation in the wizard
 - `app/api/storyboards/[id]/route.ts` — dev store: read, scene PATCH, delete
+- `app/api/storyboards/[id]/clone/` — "Make variant": new id, same board, fresh seed
 - `app/api/storyboards/[id]/hooks/route.ts` — A/B/C hook engineer (LLM)
 - `app/api/jobs/route.ts` — cost gate + job queue (POST) + refund sweep (GET)
 - `app/api/jobs/[id]/route.ts` · `[id]/video/` · `[id]/log/` · `[id]/frames/[i]/` —
@@ -52,8 +57,12 @@ LLM auth is automatic: `ZEN_URL` (default `https://opencode.ai/zen/v1`),
   delivery-guard checks (`runGuard`)
 - `lib/ledger.mjs` — credits ledger (debit/credit/cost)
 - `lib/render-job.mjs` — background render worker (detached child of Next);
-  prepends `<repo>/.tools` (static ffmpeg/ffprobe) to PATH, snapshots one frame
-  per scene midpoint (contact sheets), records seed + frames on the job
+  prepends `<repo>/.tools` (static ffmpeg/ffprobe) to PATH, snapshots 3 frames
+  per scene (contact sheets + no-stasis sampling), pixel-diffs consecutive
+  frames per scene into a motion score (`job.motion`), records seed + frame
+  times on the job
+- `lib/brand-kits.ts` — brand kit store + WCAG contrast math (relative
+  luminance, 4.5:1 white-text / 3:1 canvas checks) used by the wizard
 - `components/` — shell (⌘K palette, theme toggle, credits pill), button,
   badge, scene editor (incl. Approved toggle), values chips, why-look,
   hook picker, render cost gate
@@ -67,7 +76,7 @@ reduced-motion respected. ⌘K command palette ships on all studio routes.
 
 ## Next
 
-- Zero-gap segment re-render (chaptered re-edit)
-- Contact-sheet scrubber (click frames → seek preview)
-- Brand-kit builder on the library page
-- Render-tier guard checks on frames (no-stasis/motion) surfaced after render
+- Zero-gap segment re-render (chaptered re-edit — only the changed scene re-renders)
+- Contact-sheet scrubber on the storyboard page (latest render's frames)
+- Brand-kit builder is live; next: per-storyboard ratio variants rendered in one pass
+- Render-tier guard could grow: ASR/caption checks when VO lands (Phase 4)

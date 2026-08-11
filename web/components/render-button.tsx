@@ -16,6 +16,7 @@ export function RenderButton({
   const [balance, setBalance] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [seed, setSeed] = useState(() => Math.random().toString(36).slice(2, 8));
 
   useEffect(() => {
     if (!confirming) return;
@@ -38,7 +39,7 @@ export function RenderButton({
       const res = await fetch("/api/jobs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ storyboardId }),
+        body: JSON.stringify({ storyboardId, seed }),
       });
       if (res.status === 402) {
         const d = await res.json();
@@ -89,6 +90,23 @@ export function RenderButton({
             <div className="mt-2 text-[13px] text-text-med">
               <span className="font-medium text-text-hi">Free:</span> storyboards, edits, snapshots.
             </div>
+            <div className="mt-3 flex items-center gap-2 rounded-ctl border border-border-subtle bg-surface-2 px-3 py-2">
+              <span className="text-[12px] text-text-low">Seed family</span>
+              <span className="text-[13px] font-semibold tabular-nums">{seed}</span>
+              <button
+                type="button"
+                onClick={() => setSeed(Math.random().toString(36).slice(2, 8))}
+                aria-label="Roll a new seed family"
+                title="Same seed = identical render; a new seed is a variation (PLAN variation engine)."
+                className="ml-auto rounded-ctl border border-border-subtle px-2 py-0.5 text-[12px] text-text-med transition-colors hover:border-accent hover:text-accent-strong"
+              >
+                re-roll
+              </button>
+            </div>
+            <p className="mt-2 text-[12px] text-text-low">
+              Same seed → bit-identical output. New seed → a seeded variation of the same
+              storyboard.
+            </p>
             {insufficient && (
               <p role="alert" className="mt-3 rounded-ctl border border-danger/40 bg-danger/10 px-3 py-2 text-[13px] text-danger">
                 Not enough credits for this render.

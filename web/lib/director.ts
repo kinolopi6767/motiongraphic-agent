@@ -46,12 +46,15 @@ No filler scenes — only what the brief earns.`;
 /** Runs the director agent with one validation retry. */
 export async function runDirector(
   brief: string,
-  opts?: { duration?: number; tone?: string; ratio?: string },
+  opts?: { duration?: number; tone?: string; ratio?: string; brandKit?: { name: string; colors: string[]; vibe: string } },
 ): Promise<Storyboard> {
   const extras = [
     opts?.duration ? `Target duration: ${opts.duration}s.` : "",
     opts?.tone ? `Tone: ${opts.tone}.` : "",
     opts?.ratio ? `Format ratio: ${opts.ratio}.` : "",
+    opts?.brandKit
+      ? `Brand kit "${opts.brandKit.name}" (vibe: ${opts.brandKit.vibe}): palette = ${opts.brandKit.colors.join(", ")}. Use ONLY these colors — first color is the canvas/background, the rest are accents (one dominant accent).`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");

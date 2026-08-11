@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { CloneButton } from "@/components/clone-button";
 import { RenderButton } from "@/components/render-button";
 import { SceneEditor } from "@/components/scene-editor";
 import { WhyLook } from "@/components/why-look";
@@ -31,6 +32,9 @@ export default async function StoryboardPage({
     storyboard: Storyboard;
     brief: string;
     ratio?: string;
+    brandKitId?: string;
+    brandKitName?: string;
+    palette?: string[];
     createdAt: string;
   };
   try {
@@ -91,10 +95,27 @@ export default async function StoryboardPage({
               <h1 className="mt-1 text-3xl font-semibold tracking-tight">{sb.title}</h1>
               <p className="mt-1 text-[14px] text-text-med">
                 {sb.scenes.length} scenes · {sb.total}s · {sb.formatArchetype}
-                {record.ratio && <> · {record.ratio}</>} · free to edit
+                {record.ratio && <> · {record.ratio}</>}
+                {record.brandKitName && <> · {record.brandKitName}</>} · free to edit
               </p>
+              {record.palette && (
+                <div className="mt-2 flex items-center gap-1.5" aria-label="Brand palette">
+                  {record.palette.map((c) => (
+                    <span
+                      key={c}
+                      title={c}
+                      className="size-4 rounded-full border border-border-subtle"
+                      style={{ background: c }}
+                    />
+                  ))}
+                  <span className="ml-1 text-[12px] text-text-low">brand kit</span>
+                </div>
+              )}
             </div>
-            <RenderButton storyboardId={id} costEstimate={costFor(sb.total)} />
+            <div className="flex items-start gap-2">
+              <CloneButton storyboardId={id} />
+              <RenderButton storyboardId={id} costEstimate={costFor(sb.total)} />
+            </div>
           </div>
 
           <div className="mt-8 flex flex-col gap-4">

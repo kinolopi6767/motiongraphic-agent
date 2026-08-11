@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/badge";
+import { Button } from "@/components/button";
+
+type Motion = { scene: number; duration: number; frames: number; score: number; pass: boolean };
 
 type Job = {
   id: string;
@@ -15,6 +18,8 @@ type Job = {
   error?: string;
   logFile?: string;
   frames?: string[];
+  frameTimes?: (number | null)[];
+  motion?: Motion[];
   seed?: string;
   createdAt: string;
   finishedAt?: string;
@@ -73,13 +78,114 @@ function LogViewer({ jobId }: { jobId: string }) {
   );
 }
 
+/** Draft scrubber (UI-PLAN §2.3): click a contact-sheet frame → seek the player. */
+function Filmstrip({ job }: { job: Job }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [duration, setDuration] = useState(0);
+  const frames = job.frames ?? [];
+  const times = job.frameTimes ?? [];
+  return (
+    <div className="mt-3">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Contact sheet — click a frame to seek">
+        {frames.map((_, i) => {
+          const t = times[i] ?? null;
+          return (
+            <button
+              key={i}
+              type="button"
+              title={t !== null ? `Seek to ${t.toFixed(1)}s` : `frame ${i + 1}`}
+              aria-label={t !== null ? `seek to ${t.toFixed(1)} seconds` : `frame ${i + 1}`}
+              onClick={() => {
+                const v = videoRef.current;
+                if (v && t !== null) v.currentTime = Math.min(t, duration || t);
+              }}
+              className="shrink-0 rounded-ctl border border-border-subtle bg-surface-2 p-0.5 transition-transform hover:scale-[1.04] hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              <img
+                src={`/api/jobs/${job.id}/frames/${i}`}
+                alt={`contact sheet ${i + 1}`}
+                loading="lazy"
+                className="h-14 w-24 rounded object-cover"
+              />
+            </button>
+          );
+        })}
+      </div>
+      {/* Render-tier guard: no-stasis verdict per scene from frame diffs. */}
+      {(job.motion?.length ?? 0) > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="Motion guard">
+          <span className="text-[11px] uppercase tracking-wide text-text-low">motion guard</span>
+          {job.motion?.map((m) => (
+            <span
+              key={m.scene}
+              title={`scene ${m.scene + 1}: mean frame drift ${m.score} (${m.frames} samples)`}
+              className={`rounded-full border px-2 py-0.5 text-[11px] tabular-nums ${
+                m.pass
+                  ? "border-ok/30 bg-ok/10 text-ok"
+                  : "border-warn/40 bg-warn/10 text-warn"
+              }`}
+            >
+              {m.pass ? "✓" : "▲"} S{m.scene + 1} · {m.score.toFixed(2)}
+            </span>
+          ))}
+        </div>
+      )}
+      <video
+        ref={videoRef}
+        src={`/api/jobs/${job.id}/video`}
+        controls
+        preload="metadata"
+        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+        className="mt-3 h-24 w-40 rounded-ctl border border-border-subtle bg-surface-2"
+      />
+    </div>
+  );
+}
+
+function RetryButton({ job, onQueued }: { job: Job; onQueued: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const retry = async () => {
+    if (!job.storyboardId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ storyboardId: job.storyboardId, seed: job.seed }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error ?? "retry failed");
+      }
+      onQueued();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "retry failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!job.storyboardId) return null;
+  return (
+    <div className="flex items-center gap-2">
+      <Button size="sm" variant="outline" onClick={retry} disabled={busy}>
+        {busy ? "Queuing…" : "Retry — same seed"}
+      </Button>
+      {job.seed && <span className="text-[11px] tabular-nums text-text-low">seed {job.seed}</span>}
+      {error && <span className="text-[12px] text-danger">{error}</span>}
+    </div>
+  );
+}
+
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [busy, setBusy] = useState(true);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
-    const tick = async () => {
+    const tickFn = async () => {
       try {
         const res = await fetch("/api/jobs");
         if (!res.ok) throw new Error(String(res.status));
@@ -91,13 +197,13 @@ export default function JobsPage() {
         if (alive) setBusy(false);
       }
     };
-    tick();
-    const iv = setInterval(tick, REFRESH_MS);
+    tickFn();
+    const iv = setInterval(tickFn, REFRESH_MS);
     return () => {
       alive = false;
       clearInterval(iv);
     };
-  }, []);
+  }, [tick]);
 
   const active = jobs.some((j) => j.status === "running" || j.status === "queued");
 
@@ -109,7 +215,8 @@ export default function JobsPage() {
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Jobs</h1>
         <p className="mt-1 text-[14px] text-text-med">
-          Polls automatically while a job is active. Failed jobs auto-refund their credits.
+          Polls automatically while a job is active. Failed jobs auto-refund their credits; retry
+          keeps the same seed family.
         </p>
 
         {busy && <p className="mt-8 text-[14px] text-text-med">Loading…</p>}
@@ -154,33 +261,11 @@ export default function JobsPage() {
                   </p>
                   {j.error && <p className="mt-1 text-[13px] text-danger">{j.error}</p>}
                 </div>
-                {j.status === "done" && (
-                  <video
-                    src={`/api/jobs/${j.id}/video`}
-                    controls
-                    preload="metadata"
-                    className="h-24 w-40 rounded-ctl border border-border-subtle bg-surface-2"
-                  />
+                {j.status === "failed" && (
+                  <RetryButton job={j} onQueued={() => setTick((t) => t + 1)} />
                 )}
               </div>
-              {j.status === "done" && (j.frames?.length ?? 0) > 0 && (
-                <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1">
-                  {j.frames?.map((_, i) => (
-                    <img
-                      key={i}
-                      src={`/api/jobs/${j.id}/frames/${i}`}
-                      alt={`contact sheet ${i + 1}`}
-                      loading="lazy"
-                      className="h-14 w-24 shrink-0 rounded-ctl border border-border-subtle bg-surface-2 object-cover"
-                    />
-                  ))}
-                  {j.seed && (
-                    <span className="ml-2 shrink-0 text-[11px] tabular-nums text-text-low">
-                      seed {j.seed}
-                    </span>
-                  )}
-                </div>
-              )}
+              {j.status === "done" && <Filmstrip job={j} />}
               {(j.status === "failed" || j.status === "done") && <LogViewer jobId={j.id} />}
             </li>
           ))}

@@ -1,9 +1,66 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/button";
+
+type Kit = { id: string; name: string; colors: string[]; vibe: string };
+
+function KitPicker({
+  selected,
+  onChange,
+  kits,
+}: {
+  selected: string | null;
+  onChange: (id: string | null) => void;
+  kits: Kit[];
+}) {
+  if (kits.length === 0) return null;
+  return (
+    <label className="flex flex-col gap-2 sm:col-span-2">
+      <span className="text-[14px] font-medium text-text-med">Brand kit (optional)</span>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          aria-pressed={selected === null}
+          onClick={() => onChange(null)}
+          className={`rounded-ctl border px-3 py-2 text-[13px] transition-colors ${
+            selected === null
+              ? "border-accent bg-accent-soft font-semibold text-accent-strong"
+              : "border-border-subtle bg-surface-1 text-text-med hover:text-text-hi"
+          }`}
+        >
+          No kit
+        </button>
+        {kits.map((k) => (
+          <button
+            key={k.id}
+            type="button"
+            aria-pressed={selected === k.id}
+            onClick={() => onChange(selected === k.id ? null : k.id)}
+            className={`flex items-center gap-2 rounded-ctl border px-3 py-2 text-[13px] transition-colors ${
+              selected === k.id
+                ? "border-accent bg-accent-soft font-semibold text-accent-strong"
+                : "border-border-subtle bg-surface-1 text-text-med hover:text-text-hi"
+            }`}
+          >
+            <span className="flex -space-x-1.5">
+              {k.colors.slice(0, 3).map((c) => (
+                <span
+                  key={c}
+                  className="size-4 rounded-full border border-surface-1"
+                  style={{ background: c }}
+                />
+              ))}
+            </span>
+            {k.name}
+          </button>
+        ))}
+      </div>
+    </label>
+  );
+}
 
 function BriefForm() {
   const router = useRouter();
@@ -12,8 +69,23 @@ function BriefForm() {
   const [duration, setDuration] = useState("30");
   const [tone, setTone] = useState("");
   const [ratio, setRatio] = useState("16:9");
+  const [brandKitId, setBrandKitId] = useState<string | null>(search.get("kit"));
+  const [kits, setKits] = useState<Kit[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/brand-kits")
+      .then((r) => r.json())
+      .then((d) => {
+        if (alive) setKits(d.kits ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const submit = async () => {
     if (brief.trim().length < 10 || busy) return;
@@ -28,6 +100,7 @@ function BriefForm() {
           duration: duration ? Number(duration) : undefined,
           tone: tone || undefined,
           ratio,
+          brandKitId: brandKitId ?? undefined,
         }),
       });
       if (!res.ok) {
@@ -118,6 +191,7 @@ function BriefForm() {
               className="min-h-[44px] rounded-ctl border border-border-subtle bg-surface-1 px-3 text-[15px] outline-none placeholder:text-text-low focus:border-accent"
             />
           </label>
+          <KitPicker selected={brandKitId} onChange={setBrandKitId} kits={kits} />
         </div>
 
         {error && (

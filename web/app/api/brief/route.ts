@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { runDirector } from "@/lib/director";
 import { Storyboard } from "@/lib/storyboard";
+import { readKit } from "@/lib/brand-kits";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -14,6 +15,7 @@ type BriefBody = {
   duration?: number;
   tone?: string;
   ratio?: string;
+  brandKitId?: string;
 };
 
 const RATIOS = ["16:9", "1:1", "9:16"];
@@ -39,12 +41,33 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const storyboard = await runDirector(brief, { ...body, ratio });
+    const kit = body.brandKitId ? await readKit(body.brandKitId) : null;
+    if (body.brandKitId && !kit) {
+      return NextResponse.json({ error: "brand kit not found" }, { status: 404 });
+    }
+    const storyboard = await runDirector(brief, {
+      ...body,
+      ratio,
+      brandKit: kit ? { name: kit.name, colors: kit.colors, vibe: kit.vibe } : undefined,
+    });
     const id = `sb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     await mkdir(STORE, { recursive: true });
     await writeFile(
       join(STORE, `${id}.json`),
-      JSON.stringify({ id, brief, ratio, storyboard, createdAt: new Date().toISOString() }, null, 2),
+      JSON.stringify(
+        {
+          id,
+          brief,
+          ratio,
+          brandKitId: kit?.id,
+          brandKitName: kit?.name,
+          palette: kit?.colors,
+          storyboard,
+          createdAt: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
     );
     return NextResponse.json({ id, storyboard: storyboard as Storyboard });
   } catch (e) {
