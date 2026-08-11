@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     if (body.brandKitId && !kit) {
       return NextResponse.json({ error: "brand kit not found" }, { status: 404 });
     }
-    const { storyboard, usage } = await runDirector(brief, {
+    const { storyboard, usage, beats } = await runDirector(brief, {
       ...body,
       ratio,
       style,
@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
           palette: kit?.colors,
           voiceTier,
           usage: usageLog,
+          beats,
           storyboard,
           createdAt: new Date().toISOString(),
         },
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
         2,
       ),
     );
-    return NextResponse.json({ id, storyboard: storyboard as Storyboard, voiceTier, usage: usageLog });
+    return NextResponse.json({ id, storyboard: storyboard as Storyboard, voiceTier, usage: usageLog, beats });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "director failed" }, { status: 502 });
   }

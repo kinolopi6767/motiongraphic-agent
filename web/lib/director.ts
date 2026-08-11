@@ -87,7 +87,7 @@ function varietyErrors(scenes: Storyboard["scenes"]) {
 export async function runDirector(
   brief: string,
   opts?: { duration?: number; tone?: string; ratio?: string; style?: string; brandKit?: { name: string; colors: string[]; vibe: string } },
-): Promise<{ storyboard: Storyboard; usage: { model: string; prompt: number; completion: number; total: number } }> {
+): Promise<{ storyboard: Storyboard; usage: { model: string; prompt: number; completion: number; total: number }; beats: ScriptBeat[] }> {
   const extras = [
     opts?.duration ? `Target duration: ${opts.duration}s.` : "",
     opts?.tone ? `Tone: ${opts.tone}.` : "",
@@ -102,6 +102,9 @@ export async function runDirector(
     .filter(Boolean)
     .join("\n");
 
+  // STAGE 1 — break the script down into narrative beats BEFORE planning scenes.
+  const { beats, usage: breakdownUsage } = await runBeatBreakdown(brief);
+
   let lastErr: Error | null = null;
   let usage = { model: "unknown", prompt: 0, completion: 0, total: 0 };
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -112,14 +115,19 @@ export async function runDirector(
           : "";
       const { json: sb, usage: u } = await chatJsonU<Storyboard>(
         DIRECTOR_SYSTEM,
-        `BRIEF:\n${brief}\n\n${extras}\n\n${VALUES_CONTRACT}${retryNote}`,
+        `BRIEF:\n${brief}\n\n${extras}\n\nSCRIPT BEATS (break these down into scenes — one scene per beat, or one scene for two tightly-coupled beats, never the reverse):\n${beats
+          .map(
+            (b, i) =>
+              `${i + 1}. [${b.kind}] ${b.line}${b.facts.length ? ` (facts: ${b.facts.join("; ")})` : ""}`,
+          )
+          .join("\n")}\n\n${VALUES_CONTRACT}${retryNote}`,
       );
-      usage = u;
+      usage = { ...u, prompt: u.prompt + breakdownUsage.prompt, completion: u.completion + breakdownUsage.completion, total: u.total + breakdownUsage.total };
       const errors = validateStoryboard(sb);
       const vErrs = varietyErrors(sb.scenes);
       if (!errors.length && vErrs.length === 0) {
         sb.total = sb.scenes.reduce((a, s) => a + s.duration, 0);
-        return { storyboard: sb, usage };
+        return { storyboard: sb, usage, beats };
       }
       lastErr = new Error(
         `storyboard invalid: ${[...errors, ...vErrs].join("; ")}`,
@@ -131,4 +139,49 @@ export async function runDirector(
     if (attempt === 1) await new Promise((r) => setTimeout(r, 400));
   }
   throw lastErr ?? new Error("director failed");
+}
+
+export type ScriptBeat = {
+  line: string;
+  kind: "hook" | "context" | "claim" | "proof" | "payoff" | "closer";
+  emphasis?: string;
+  facts: string[];
+};
+
+const BEAT_SYSTEM = `You are the SCRIPT ANALYST of an agentic motion-graphics engine.
+Break the script down into its narrative beats. Rules:
+- 3 to 7 beats. Each beat is ONE thought — one sentence of meaning.
+- Every beat has a kind: hook (the first attention-grab), context (setting),
+  claim (a statement), proof (a fact/statistic that backs a claim), payoff (the
+  single best insight — near the end, not last), closer (final stamp).
+- Extract EVERY concrete fact (numbers, names, percentages, years) into the
+  beat's facts array — verbatim from the script, never invented.
+- emphasis: the single word/phrase the beat hinges on (if any).
+- Write beats as if for a narrator — short, speakable lines.
+Return ONLY valid JSON: {"beats":[{"line","kind","emphasis?","facts":[]}]}.`;
+
+/** Stage 1 — script → narrative beats (the scene plan is built ON this). */
+async function runBeatBreakdown(
+  brief: string,
+): Promise<{ beats: ScriptBeat[]; usage: { model: string; prompt: number; completion: number; total: number } }> {
+  const KINDS = new Set(["hook", "context", "claim", "proof", "payoff", "closer"]);
+  let lastErr: Error | null = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const { json, usage } = await chatJsonU<{ beats?: ScriptBeat[] }>(BEAT_SYSTEM, brief, 0.3);
+      const beats = (json.beats ?? []).slice(0, 7).map((b, i) => ({
+        line: String(b.line ?? "").trim(),
+        kind: (KINDS.has(b.kind) ? b.kind : i === 0 ? "hook" : "claim") as ScriptBeat["kind"],
+        emphasis: b.emphasis ? String(b.emphasis).trim() : undefined,
+        facts: (Array.isArray(b.facts) ? b.facts : []).map((f) => String(f).trim()).filter(Boolean).slice(0, 6),
+      }));
+      if (beats.length < 3) throw new Error("need at least 3 beats");
+      if (beats.some((b) => !b.line)) throw new Error("beat with empty line");
+      return { beats, usage };
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+    }
+    if (attempt === 1) await new Promise((r) => setTimeout(r, 400));
+  }
+  throw lastErr ?? new Error("beat breakdown failed");
 }

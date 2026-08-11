@@ -67,6 +67,7 @@ export default async function StoryboardPage({
     brandKitName?: string;
     palette?: string[];
     voiceTier?: string;
+    beats?: { line: string; kind: string; emphasis?: string; facts: string[] }[];
     usage?: { at: string; kind: string; model: string; prompt: number; completion: number; total: number }[];
     createdAt: string;
   };
@@ -160,6 +161,40 @@ export default async function StoryboardPage({
               <RenderButton storyboardId={id} initialQuality={record.quality} />
             </div>
           </div>
+
+          {(record.beats?.length ?? 0) > 0 && (
+            <div className="mt-8 rounded-card border border-border-subtle bg-surface-1 p-5">
+              <h2 className="text-[15px] font-semibold">Script beats</h2>
+              <p className="mt-1 text-[13px] text-text-low">
+                The script was broken down into these beats first — each scene is planned on top of
+                one.
+              </p>
+              <ol className="mt-4 flex flex-col gap-2">
+                {record.beats!.map((b, i) => (
+                  <li key={i} className="flex items-start gap-3 rounded-ctl border border-border-subtle bg-surface-2 px-3 py-2">
+                    <span className="mt-0.5 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold tracking-wide text-accent-strong">
+                      {b.kind}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[14px] leading-snug">
+                        {b.line}
+                        {b.emphasis && (
+                          <span className="ml-2 rounded-full border border-border-subtle px-2 py-0.5 text-[11px] text-text-med">
+                            emphasis: {b.emphasis}
+                          </span>
+                        )}
+                      </span>
+                      {b.facts.length > 0 && (
+                        <span className="mt-1 block text-[12px] tabular-nums text-text-low">
+                          facts: {b.facts.join(" · ")}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           <div className="mt-8 flex flex-col gap-4">
             {sb.scenes.map((s, i) => {
